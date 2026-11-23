@@ -6,22 +6,27 @@ import { useCallback, useState } from 'react';
 // shared build configuration. Nothing here is specific to routes or trips,
 // so each piece can be read on its own.
 
+// The page's components use these inline, so re-pointing them at the theme's
+// custom properties restyles the whole Route & Stop page in one place.
+// Anything structural (padding, layout) stays here; anything that is a colour
+// defers to src/styles/theme.css, so light/dark or a palette change never has
+// to be chased through the components.
 export const styles = {
   card: {
-    border: '1px solid #d6d6d6',
-    borderRadius: 6,
-    padding: 12,
-    marginBottom: 12,
-    background: '#fff',
+    background: 'var(--surface-2)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)',
+    padding: '16px 18px',
+    marginBottom: 14,
   },
-  row: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  input: { padding: '6px 8px', border: '1px solid #bbb', borderRadius: 4, font: 'inherit' },
-  label: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14 },
-  muted: { color: '#666', fontSize: 14 },
-  tabBar: { display: 'flex', gap: 8, margin: '12px 0' },
-  table: { borderCollapse: 'collapse', width: '100%', fontSize: 14 },
-  th: { textAlign: 'left', borderBottom: '2px solid #ddd', padding: '6px 8px' },
-  td: { borderBottom: '1px solid #eee', padding: '6px 8px', verticalAlign: 'top' },
+  row: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' },
+  input: {}, // styled globally in theme.css
+  label: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--text-secondary)' },
+  muted: { color: 'var(--text-muted)', fontSize: 12.5 },
+  tabBar: { display: 'flex', gap: 8, margin: '14px 0' },
+  table: { borderCollapse: 'collapse', width: '100%', fontSize: 13.5 },
+  th: {},  // styled globally
+  td: {},  // styled globally
 };
 
 /**
@@ -45,8 +50,8 @@ export function ErrorBanner({ error, onDismiss }) {
       role="alert"
       style={{
         ...styles.card,
-        borderColor: '#c62828',
-        background: '#fdecea',
+        borderColor: 'var(--critical)',
+        background: 'rgba(208, 59, 59, 0.10)',
       }}
     >
       <div style={styles.row}>
@@ -122,11 +127,14 @@ export function Tabs({ tabs, current, onChange }) {
 }
 
 export function Badge({ tone = 'neutral', children }) {
+  // Status colours sit on a tinted wash of themselves rather than a solid
+  // fill, so they stay legible on the dark surface. Each badge always carries
+  // a word, never colour alone.
   const tones = {
-    neutral: { background: '#eee', color: '#333' },
-    good: { background: '#e3f4e5', color: '#1b5e20' },
-    bad: { background: '#fdecea', color: '#c62828' },
-    warn: { background: '#fff6e0', color: '#8a6100' },
+    neutral: { background: 'var(--surface-3)', color: 'var(--text-secondary)' },
+    good: { background: 'rgba(12, 163, 12, 0.16)', color: 'var(--good)' },
+    bad: { background: 'rgba(208, 59, 59, 0.16)', color: 'var(--critical)' },
+    warn: { background: 'rgba(250, 178, 25, 0.16)', color: 'var(--warning)' },
   };
   return (
     <span

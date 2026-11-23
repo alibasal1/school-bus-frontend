@@ -165,7 +165,7 @@ function PreviewResult({ preview, busy, onCommit }) {
   const byReason = summary.skipped_by_reason || {};
 
   return (
-    <div style={{ marginTop: 12, borderTop: '1px solid #eee', paddingTop: 12 }}>
+    <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
       <div style={styles.row}>
         <Badge tone={summary.planned > 0 ? 'good' : 'warn'}>{summary.planned} to create</Badge>
         <Badge>{summary.skipped} skipped</Badge>
@@ -217,7 +217,7 @@ function PreviewResult({ preview, busy, onCommit }) {
           service day" rows would bury the handful that need a decision. */}
       {skipped.some((entry) => entry.reason === 'conflict') && (
         <details open>
-          <summary style={{ cursor: 'pointer', color: '#c62828' }}>Refused because of a clash</summary>
+          <summary style={{ cursor: 'pointer', color: 'var(--critical)' }}>Refused because of a clash</summary>
           <ul style={{ paddingLeft: 20, fontSize: 14 }}>
             {skipped
               .filter((entry) => entry.reason === 'conflict')
@@ -430,7 +430,7 @@ function CancelDialog({ trip, onClose, onDone }) {
     <div
       style={{
         ...styles.card,
-        borderColor: '#c62828',
+        borderColor: 'var(--critical)',
         marginTop: 12,
       }}
       role="dialog"

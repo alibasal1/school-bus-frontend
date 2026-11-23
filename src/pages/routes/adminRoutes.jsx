@@ -300,7 +300,7 @@ function StopEditor({ routeId, onChanged }) {
   }
 
   return (
-    <div style={{ marginTop: 12, borderTop: '1px solid #eee', paddingTop: 12 }}>
+    <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
       <h4 style={{ marginTop: 0 }}>Stops</h4>
       <ErrorBanner error={loadError} onDismiss={() => setLoadError(null)} />
       <ErrorBanner error={error} onDismiss={() => setError(null)} />

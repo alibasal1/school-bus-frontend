@@ -299,7 +299,7 @@ export function ScheduleTab({ routes }) {
               </Field>
             </div>
 
-            <fieldset style={{ border: '1px solid #ddd', borderRadius: 4, marginTop: 12 }}>
+            <fieldset style={{ border: '1px solid var(--border)', borderRadius: 4, marginTop: 12 }}>
               <legend style={{ fontSize: 14 }}>Service days</legend>
               <div style={styles.row}>
                 {WEEKDAYS.map((weekday) => (

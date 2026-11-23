@@ -3,7 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Tells the browser to render form controls and scrollbars dark from the
+         first paint, so there is no white flash before the CSS loads. -->
+    <meta name="color-scheme" content="dark" />
     <title>School Bus Route Tracker</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0b0b0b;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
