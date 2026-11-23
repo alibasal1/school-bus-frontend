@@ -27,6 +27,21 @@ npm run dev                  (site on http://localhost:5173)
 
 Run the backend services you need at the same time (each one with `npm run dev` in its own repo).
 
+`apiRequest` takes an optional third argument:
+
+```
+apiRequest('routes', '/api/routes', {
+  method: 'POST',
+  body: { ... },
+  headers: { 'Idempotency-Key': '...' },   // optional, merged in
+})
+```
+
+A 429 is turned into "Too many requests. Try again in N seconds." The thrown
+Error also carries `.status`, `.code`, `.details` and `.requestId` for callers
+that want them; `.message` reads the same as before, so pages that only show
+the message are unaffected.
+
 ## Rules
 
 - Each member edits only his own pages. `App.jsx`, `api.js` and `config.js` change only after telling the group.
