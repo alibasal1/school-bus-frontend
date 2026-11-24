@@ -16,14 +16,14 @@ const C = {
 };
 
 const styles = {
-  page: { maxWidth: 900, margin: '0 auto', color: C.text, background: '#ffffff' },
-  title: { fontSize: 28, margin: '8px 0 16px' },
+  page: { maxWidth: 1000, margin: '0 auto', color: C.text, background: '#ffffff' },
+  title: { fontSize: 34, fontWeight: 'bold', color: C.text, margin: '8px 0 18px' },
   card: {
     background: '#ffffff',
     border: `1px solid ${C.border}`,
     borderRadius: 12,
-    padding: '16px 18px',
-    marginBottom: 12
+    padding: '20px 22px',
+    marginBottom: 14
   },
   yellowCard: { background: C.yellowBg, borderColor: C.yellowBorder },
   greyCard: { background: '#f7f8fb', color: C.grey },
@@ -62,10 +62,10 @@ const styles = {
   pageError: { color: C.red, fontSize: 14, margin: '0 0 12px' },
   list: { listStyle: 'none', padding: 0, margin: 0 },
   stopRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  routeName: { fontWeight: 'bold', fontSize: 17 },
-  stopName: { color: C.grey },
-  arrival: { margin: '6px 0 0', fontSize: 16 },
-  noBus: { margin: '6px 0 0', fontSize: 16, color: C.yellowText, fontWeight: 'bold' },
+  routeName: { fontWeight: 'bold', fontSize: 18 },
+  stopName: { color: C.grey, fontSize: 15 },
+  arrival: { margin: '8px 0 0', fontSize: 17 },
+  noBus: { margin: '8px 0 0', fontSize: 17, color: C.yellowText },
   holidayLine: { padding: '4px 0', color: C.text }
 };
 
@@ -202,7 +202,10 @@ export default function FavoritesPage() {
   }
 
   function arrivalLine(favorite) {
-    if (favorite.noBusToday) return <p style={styles.noBus}>No bus today</p>;
+    // noBusToday is only true on a public holiday (see services/favorites.js).
+    if (favorite.noBusToday) {
+      return <p style={styles.noBus}><strong>No bus today</strong> (public holiday)</p>;
+    }
     if (!favorite.arrivalFrom) return <p style={styles.arrival}>No upcoming bus time today.</p>;
     return (
       <p style={styles.arrival}>

@@ -15,9 +15,9 @@ const C = {
 };
 
 const styles = {
-  page: { maxWidth: 900, margin: '0 auto', color: C.text, background: '#ffffff' },
-  header: { display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0 12px' },
-  title: { fontSize: 28, margin: 0 },
+  page: { maxWidth: 1000, margin: '0 auto', color: C.text, background: '#ffffff' },
+  header: { display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0 14px' },
+  title: { fontSize: 34, fontWeight: 'bold', color: C.text, margin: 0 },
   pill: {
     background: C.lightBlue,
     color: C.blue,
@@ -37,13 +37,14 @@ const styles = {
     borderRadius: 8,
     cursor: 'pointer'
   },
-  smallButton: {
-    padding: '3px 10px',
-    fontSize: 14,
-    color: C.text,
-    background: '#ffffff',
-    border: `1px solid ${C.border}`,
-    borderRadius: 6,
+  // A real <button> that looks like a link, so it still works with the keyboard.
+  linkButton: {
+    padding: 0,
+    fontSize: 15,
+    color: '#1a0dab',
+    background: 'none',
+    border: 'none',
+    textDecoration: 'underline',
     cursor: 'pointer'
   },
   success: { color: C.green, fontSize: 14, margin: '0 0 12px' },
@@ -54,12 +55,12 @@ const styles = {
     background: '#ffffff',
     border: `1px solid ${C.border}`,
     borderRadius: 12,
-    padding: '16px 18px',
-    marginBottom: 12
+    padding: '20px 22px',
+    marginBottom: 14
   },
   greyCard: { background: '#f7f8fb', color: C.grey },
   message: { margin: 0, fontSize: 17 },
-  meta: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 14, color: C.grey }
+  meta: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 15, color: C.grey }
 };
 
 // The colored bar on an unread alert says what kind of message it is.
@@ -222,7 +223,7 @@ export default function AlertsPage() {
               <span>·</span>
               {alert.isRead
                 ? <span>Read</span>
-                : <button style={styles.smallButton} onClick={() => markAsRead(alert.id)}>Mark as read</button>}
+                : <button style={styles.linkButton} onClick={() => markAsRead(alert.id)}>Mark as read</button>}
             </div>
           </li>
         ))}
