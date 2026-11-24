@@ -45,12 +45,23 @@ export default function FavoritesPage() {
     }
   }
 
+  // The API answers one year at a time. After the last holiday of the year
+  // (October in Egypt) this year's list has nothing left, so the box stayed
+  // empty until January. When fewer than 3 are left, next year's list is added.
   async function loadHolidays() {
     try {
-      const data = await apiRequest('favorites', '/api/holidays');
-      const today = new Date().toISOString().slice(0, 10);
-      const next = (data.holidays || [])
-        .filter((holiday) => holiday.date >= today)
+      // Today in Cairo, the same date the API uses, as YYYY-MM-DD.
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+      const year = Number(today.slice(0, 4));
+      const upcoming = (list) => (list || []).filter((holiday) => holiday.date >= today);
+
+      const data = await apiRequest('favorites', `/api/holidays?year=${year}`);
+      let next = upcoming(data.holidays);
+      if (next.length < 3) {
+        const following = await apiRequest('favorites', `/api/holidays?year=${year + 1}`);
+        next = next.concat(upcoming(following.holidays));
+      }
+      next = next
         .sort((a, b) => a.date.localeCompare(b.date))
         .slice(0, 3);
       setHolidays(next);
@@ -77,6 +88,9 @@ export default function FavoritesPage() {
 
   async function saveFavorite(event) {
     event.preventDefault();
+    // A new try clears the last "Stop saved.", or a duplicate would show
+    // the success line and the error at the same time.
+    setMessage('');
     if (!routeId) {
       setFormError('Please choose a route first.');
       return;
