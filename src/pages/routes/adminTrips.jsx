@@ -10,6 +10,7 @@ import { apiRequest } from '../../api';
 import { newIdempotencyKey } from './turnstile';
 import {
   Badge,
+  Btn,
   BusyButton,
   Empty,
   ErrorBanner,
@@ -373,9 +374,9 @@ function TripList({ routes, refreshToken, onChanged }) {
                 </td>
                 <td style={styles.td}>
                   {trip.status === 'active' && (
-                    <button type="button" onClick={() => setCancelling(trip)}>
+                    <Btn onClick={() => setCancelling(trip)}>
                       Cancel…
-                    </button>
+                    </Btn>
                   )}
                 </td>
               </tr>
@@ -490,9 +491,9 @@ function CancelDialog({ trip, onClose, onDone }) {
         <BusyButton busy={busy} onClick={confirm} disabled={reason.trim().length < 3}>
           Cancel this trip
         </BusyButton>
-        <button type="button" onClick={onClose}>
+        <Btn onClick={onClose}>
           Keep it
-        </button>
+        </Btn>
       </div>
     </div>
   );

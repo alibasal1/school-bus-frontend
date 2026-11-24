@@ -1,29 +1,30 @@
 // Charts for the dashboard. Owner: Yehia.
 //
-// Hand-drawn SVG rather than a charting library: adding Recharts or Chart.js
-// would mean a new dependency for everyone on the team and a bigger bundle,
-// for two charts. These are a few dozen lines each and have no build step.
+// Hand-drawn SVG, React styles only. A charting library would be a new
+// dependency for everyone on the team and a bigger bundle, for two charts.
 //
 // Choices that are not cosmetic:
-//  * Colours come from the validated pair in theme.css (--series-1,
-//    --series-2). The interface accent (orange) is never used for data, so a
-//    button can never be mistaken for a bar.
-//  * Two series therefore always carry a legend, and the table toggle means
-//    identity never rests on colour alone — which is also the answer for
-//    colour-blind readers, print and forced-colours mode.
+//  * The two series colours were validated against a white card, not picked
+//    by eye: lightness band, chroma floor, colour-blind separation (ΔE 24.7
+//    protan), normal-vision separation (ΔE 33.6) and >=3:1 contrast all pass.
+//  * Neither is Ali's navy, so a bar can never be mistaken for a button.
+//  * Two series means a legend is always shown, and there is a table toggle,
+//    so meaning never rests on colour alone. That also covers print and
+//    forced-colours mode.
 //  * One vertical scale. Never two y-axes.
-//  * Bars sit on the baseline with rounded tops only, with a 2px gap between
-//    stacked segments so they stay countable where values are small.
+//  * Bars sit on the baseline, rounded at the top only, with a 2px gap
+//    between stacked segments so they stay countable when values are small.
 
 import { useState } from 'react';
+import { Btn, series, styles, tokens } from './ui';
 
 const CHART_HEIGHT = 190;
-// A real coordinate space, scaled uniformly by the browser. An earlier
-// version used a 100-unit viewBox with preserveAspectRatio="none", which
-// stretches the x axis independently: text came out horizontally squashed
-// and the 4px corner radii turned into ellipses.
+// A real coordinate space, scaled uniformly by the browser. A narrow viewBox
+// with preserveAspectRatio="none" would scale x and y separately: the labels
+// come out squashed and the 4px corners turn into ellipses.
 const CHART_WIDTH = 720;
 const BAR_RADIUS = 4;
+const AXIS_BAND = 18;
 
 /** A bar path: rounded at the top end, square where it meets what is below. */
 function barPath(x, y, width, height, roundTop) {
@@ -52,8 +53,8 @@ function Gridlines({ max, width, height, padLeft }) {
         const y = height - (value / max) * height;
         return (
           <g key={index}>
-            <line className="chart-grid-line" x1={padLeft} y1={y} x2={width} y2={y} stroke="var(--grid)" />
-            <text x={padLeft - 8} y={y + 3.5} textAnchor="end" fill="var(--text-muted)" fontSize="10.5">
+            <line x1={padLeft} y1={y} x2={width} y2={y} stroke={tokens.border} strokeWidth="1" />
+            <text x={padLeft - 8} y={y + 4} textAnchor="end" fill={tokens.grey} fontSize="11">
               {Math.round(value)}
             </text>
           </g>
@@ -63,12 +64,21 @@ function Gridlines({ max, width, height, padLeft }) {
   );
 }
 
+function LegendKey({ colour, children }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ width: 10, height: 10, borderRadius: 3, background: colour }} />
+      {children}
+    </span>
+  );
+}
+
 /**
  * Trips per day, split into running and cancelled.
  *
  * Stacked rather than side by side because the question is "how many runs
- * that day, and how many of them fell through" — the total matters as much
- * as the split.
+ * that day, and how many fell through" - the total matters as much as the
+ * split.
  */
 export function TripsByDayChart({ days }) {
   const [hover, setHover] = useState(null);
@@ -77,44 +87,36 @@ export function TripsByDayChart({ days }) {
   const max = Math.max(1, ...days.map((day) => day.active + day.cancelled));
   const padLeft = 30;
   const width = CHART_WIDTH;
-  const innerWidth = width - padLeft;
-  const slot = innerWidth / Math.max(days.length, 1);
+  const slot = (width - padLeft) / Math.max(days.length, 1);
   const barWidth = Math.min(slot * 0.5, 26);
+  const plotHeight = CHART_HEIGHT - AXIS_BAND;
 
   return (
     <div>
-      <div className="panel-head" style={{ marginBottom: 8 }}>
-        <h3>Bus days ahead</h3>
-        <div className="legend">
-          <span className="legend-key">
-            <span className="legend-swatch" style={{ background: 'var(--series-1)' }} />
-            Running
-          </span>
-          <span className="legend-key">
-            <span className="legend-swatch" style={{ background: 'var(--series-2)' }} />
-            Cancelled
-          </span>
-        </div>
-        <button type="button" onClick={() => setShowTable((value) => !value)}>
-          {showTable ? 'Chart' : 'Table'}
-        </button>
+      <div style={{ ...styles.row, marginBottom: 10 }}>
+        <h3 style={{ ...styles.cardTitle, flex: 1, margin: 0 }}>Bus days ahead</h3>
+        <span style={{ display: 'flex', gap: 14, fontSize: 14, color: tokens.grey }}>
+          <LegendKey colour={series.one}>Running</LegendKey>
+          <LegendKey colour={series.two}>Cancelled</LegendKey>
+        </span>
+        <Btn onClick={() => setShowTable((value) => !value)}>{showTable ? 'Chart' : 'Table'}</Btn>
       </div>
 
       {showTable ? (
-        <table>
+        <table style={styles.table}>
           <thead>
             <tr>
-              <th>Day</th>
-              <th>Running</th>
-              <th>Cancelled</th>
+              <th style={styles.th}>Day</th>
+              <th style={styles.th}>Running</th>
+              <th style={styles.th}>Cancelled</th>
             </tr>
           </thead>
           <tbody>
             {days.map((day) => (
               <tr key={day.date}>
-                <td>{day.label}</td>
-                <td>{day.active}</td>
-                <td>{day.cancelled}</td>
+                <td style={styles.td}>{day.label}</td>
+                <td style={styles.td}>{day.active}</td>
+                <td style={styles.td}>{day.cancelled}</td>
               </tr>
             ))}
           </tbody>
@@ -127,10 +129,9 @@ export function TripsByDayChart({ days }) {
             role="img"
             aria-label="Trips for each of the next fourteen days, split into running and cancelled"
           >
-            <Gridlines max={max} width={width} height={CHART_HEIGHT - 18} padLeft={padLeft} />
+            <Gridlines max={max} width={width} height={plotHeight} padLeft={padLeft} />
 
             {days.map((day, index) => {
-              const plotHeight = CHART_HEIGHT - 18;
               const x = padLeft + slot * index + (slot - barWidth) / 2;
               const activeHeight = (day.active / max) * plotHeight;
               const cancelledHeight = (day.cancelled / max) * plotHeight;
@@ -147,7 +148,7 @@ export function TripsByDayChart({ days }) {
                   onMouseLeave={() => setHover(null)}
                 >
                   {/* An invisible full-height target: the hit area must be
-                      bigger than the mark, or a 1-trip bar is unhoverable. */}
+                      bigger than the mark, or a one-trip bar is unhoverable. */}
                   <rect
                     x={padLeft + slot * index}
                     y={0}
@@ -157,12 +158,12 @@ export function TripsByDayChart({ days }) {
                   />
                   <path
                     d={barPath(x, activeY, barWidth, activeHeight, true)}
-                    fill="var(--series-1)"
+                    fill={series.one}
                     opacity={hover && hover.index !== index ? 0.45 : 1}
                   />
                   <path
                     d={barPath(x, cancelledY, barWidth, cancelledHeight, activeHeight === 0)}
-                    fill="var(--series-2)"
+                    fill={series.two}
                     opacity={hover && hover.index !== index ? 0.45 : 1}
                   />
                   {/* Every other label, so they never collide. */}
@@ -171,7 +172,7 @@ export function TripsByDayChart({ days }) {
                       x={padLeft + slot * index + slot / 2}
                       y={CHART_HEIGHT - 4}
                       textAnchor="middle"
-                      fill="var(--text-muted)"
+                      fill={tokens.grey}
                       fontSize="11"
                     >
                       {day.short}
@@ -180,25 +181,29 @@ export function TripsByDayChart({ days }) {
                 </g>
               );
             })}
-            <line
-              x1={padLeft}
-              y1={CHART_HEIGHT - 18}
-              x2={width}
-              y2={CHART_HEIGHT - 18}
-              stroke="#383835"
-            />
+            <line x1={padLeft} y1={plotHeight} x2={width} y2={plotHeight} stroke={tokens.grey} />
           </svg>
 
           {hover && (
             <div
-              className="tooltip"
               style={{
+                position: 'absolute',
                 left: `${((padLeft + slot * hover.index + slot / 2) / width) * 100}%`,
                 top: 0,
                 transform: 'translate(-50%, -8px)',
+                pointerEvents: 'none',
+                background: '#fff',
+                border: `1px solid ${tokens.border}`,
+                borderRadius: 8,
+                padding: '8px 10px',
+                fontSize: 14,
+                color: tokens.text,
+                whiteSpace: 'nowrap',
+                boxShadow: '0 6px 18px rgba(31, 37, 51, 0.12)',
+                zIndex: 2,
               }}
             >
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>{hover.label}</div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>{hover.label}</div>
               <div>Running: {hover.active}</div>
               <div>Cancelled: {hover.cancelled}</div>
             </div>
@@ -210,16 +215,17 @@ export function TripsByDayChart({ days }) {
 }
 
 /**
- * Stops on each route — one series, so no legend: the heading names it.
+ * Stops on each route - one series, so no legend: the heading names it.
  * Horizontal, because route names are words and would have to be turned on
- * their side under a vertical bar.
+ * their side under a vertical bar. The value is direct-labelled, so there is
+ * no axis to read against at all.
  */
 export function StopsByRouteChart({ routes }) {
   const [hover, setHover] = useState(null);
   const max = Math.max(1, ...routes.map((route) => route.stop_count));
 
   if (routes.length === 0) {
-    return <p style={{ color: 'var(--text-muted)' }}>No routes yet.</p>;
+    return <p style={styles.muted}>No routes yet.</p>;
   }
 
   return (
@@ -229,32 +235,28 @@ export function StopsByRouteChart({ routes }) {
           key={route.id}
           onMouseEnter={() => setHover(route.id)}
           onMouseLeave={() => setHover(null)}
-          style={{ display: 'grid', gridTemplateColumns: '58px 1fr 28px', alignItems: 'center', gap: 10 }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '64px 1fr 30px',
+            alignItems: 'center',
+            gap: 10,
+          }}
+          title={`${route.name}: ${route.stop_count} stops`}
         >
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{route.code}</span>
-          <div
-            style={{
-              height: 10,
-              background: 'var(--surface-3)',
-              borderRadius: 5,
-              overflow: 'hidden',
-            }}
-            title={`${route.name}: ${route.stop_count} stops`}
-          >
+          <span style={{ fontSize: 14, color: tokens.grey }}>{route.code}</span>
+          <div style={{ height: 10, background: '#eef1f6', borderRadius: 5, overflow: 'hidden' }}>
             <div
               style={{
                 width: `${(route.stop_count / max) * 100}%`,
                 height: '100%',
-                background: 'var(--series-1)',
+                background: series.one,
                 borderRadius: 5,
                 opacity: hover && hover !== route.id ? 0.45 : 1,
                 transition: 'opacity .12s',
               }}
             />
           </div>
-          {/* The value is direct-labelled here because there are few rows and
-              it removes the need to read against an axis at all. */}
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'right' }}>
+          <span style={{ fontSize: 14, color: tokens.grey, textAlign: 'right' }}>
             {route.stop_count}
           </span>
         </div>

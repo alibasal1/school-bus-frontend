@@ -6,122 +6,101 @@ import SchedulePage from './pages/SchedulePage';
 import FavoritesPage from './pages/FavoritesPage';
 import AlertsPage from './pages/AlertsPage';
 
-// Dashboard shell: a sidebar, a top bar and one page in the middle.
-// Still tabs rather than a router, so there is nothing extra to learn and no
-// new dependency — the page is chosen by state, exactly as before. Only the
-// surroundings changed.
+// Tabs, chosen by state. No router and no new dependency.
 //
-// Every page component is imported and rendered exactly as it was, so nobody
-// needs to touch their own page to fit the new look: the styling lives in
-// src/styles/theme.css and applies to plain HTML elements.
+// Styling is React styles only: no .css file and no global stylesheet, so
+// nothing here changes how anyone else's page looks from a distance. The
+// colours are the ones Ali uses in FavoritesPage and AlertsPage, so the two
+// halves of the app look like one app.
+//
+// The nav buttons carry an explicit colour AND background. That is the fix
+// for the unreadable buttons on Windows: Chrome there draws a light grey
+// button face, so a button with no colour of its own inherits whatever text
+// colour is around it and can end up invisible.
 
 const NAV = [
-  {
-    group: null,
-    items: [{ key: 'dashboard', label: 'Dashboard', icon: '▦' }],
-  },
-  {
-    group: 'Planning',
-    items: [
-      { key: 'routes', label: 'Routes & stops', icon: '⛬' },
-      { key: 'schedule', label: 'Bus times', icon: '◷' },
-    ],
-  },
-  {
-    group: 'For families',
-    items: [
-      { key: 'favorites', label: 'My stops', icon: '★' },
-      { key: 'alerts', label: 'Alerts', icon: '!' },
-    ],
-  },
-  {
-    group: 'Account',
-    items: [{ key: 'login', label: 'Login', icon: '◉' }],
-  },
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'routes', label: 'Routes & stops' },
+  { key: 'schedule', label: 'Bus times' },
+  { key: 'favorites', label: 'My stops' },
+  { key: 'alerts', label: 'Alerts' },
+  { key: 'login', label: 'Login' },
 ];
 
 const PAGES = {
-  dashboard: { label: 'Dashboard', Page: DashboardPage },
-  routes: { label: 'Routes & stops', Page: RoutesPage },
-  schedule: { label: 'Bus times', Page: SchedulePage },
-  favorites: { label: 'My stops', Page: FavoritesPage },
-  alerts: { label: 'Alerts', Page: AlertsPage },
-  login: { label: 'Login', Page: LoginPage },
+  dashboard: DashboardPage,
+  routes: RoutesPage,
+  schedule: SchedulePage,
+  favorites: FavoritesPage,
+  alerts: AlertsPage,
+  login: LoginPage,
 };
+
+const NAVY = '#1f3b73';
+const TEXT = '#1f2533';
+const BORDER = '#e2e6ee';
+const PAGE_BG = '#f4f6fa';
+
+const shell = {
+  // The page background is set here rather than in index.html, so it stays
+  // inside React as agreed.
+  outer: {
+    minHeight: '100vh',
+    background: PAGE_BG,
+    color: TEXT,
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+    fontSize: 16,
+  },
+  inner: { maxWidth: 1000, margin: '0 auto', padding: '24px 20px 60px' },
+  header: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' },
+  title: { fontSize: 22, fontWeight: 700, margin: 0, color: TEXT },
+  nav: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 22 },
+};
+
+function navButtonStyle(isCurrent) {
+  return {
+    font: 'inherit',
+    fontSize: 15,
+    padding: '8px 14px',
+    borderRadius: 8,
+    cursor: 'pointer',
+    background: isCurrent ? NAVY : '#ffffff',
+    color: isCurrent ? '#ffffff' : TEXT,
+    border: `1px solid ${isCurrent ? NAVY : BORDER}`,
+    fontWeight: isCurrent ? 600 : 400,
+  };
+}
 
 export default function App() {
   const [current, setCurrent] = useState('dashboard');
-  const { Page, label } = PAGES[current];
+  const Page = PAGES[current];
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            <BusMark />
-          </span>
-          School Bus
-        </div>
-
-        {NAV.map((section) => (
-          <div key={section.group ?? 'top'}>
-            {section.group && <div className="nav-group">{section.group}</div>}
-            {section.items.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className="nav-item"
-                onClick={() => setCurrent(item.key)}
-                disabled={item.key === current}
-                aria-current={item.key === current ? 'page' : undefined}
-              >
-                <span aria-hidden="true" style={{ width: 16, textAlign: 'center', opacity: 0.8 }}>
-                  {item.icon}
-                </span>
-                {item.label}
-              </button>
-            ))}
-          </div>
-        ))}
-
-        <div className="sidebar-footer">
-          <strong style={{ color: 'var(--text-primary)' }}>Team 14</strong>
-          <p style={{ margin: '6px 0 0' }}>
-            Route &amp; Stop · Schedule &amp; Arrival · Favorites &amp; Alerts
-          </p>
-        </div>
-      </aside>
-
-      <div className="main">
-        <header className="topbar">
-          <span className="crumb">
-            School Bus / <strong>{label}</strong>
-          </span>
-          <div className="topbar-spacer" />
-          <div className="avatar" title="Signed-in user" aria-hidden="true">
-            ●
-          </div>
+    <div style={shell.outer}>
+      <div style={shell.inner}>
+        <header style={shell.header}>
+          <h1 style={shell.title}>School Bus Route Tracker</h1>
         </header>
 
-        <main className="content">
-          {/* onNavigate lets the dashboard's buttons move between pages.
-              Pages that do not take it simply ignore the prop. */}
-          <Page onNavigate={setCurrent} />
-        </main>
+        <nav style={shell.nav}>
+          {NAV.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setCurrent(item.key)}
+              aria-current={item.key === current ? 'page' : undefined}
+              style={navButtonStyle(item.key === current)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* onNavigate lets the dashboard's buttons move between pages.
+            Pages that do not take it simply ignore the prop, so none of the
+            other pages needed changing. */}
+        <Page onNavigate={setCurrent} />
       </div>
     </div>
-  );
-}
-
-/** A plain bus shape, drawn here so the app needs no image file. */
-function BusMark() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <rect x="2" y="3" width="12" height="8" rx="2" fill="#fff" />
-      <rect x="3.5" y="4.6" width="3.6" height="2.6" rx="0.6" fill="#f0531f" />
-      <rect x="8.9" y="4.6" width="3.6" height="2.6" rx="0.6" fill="#f0531f" />
-      <circle cx="5" cy="12.4" r="1.5" fill="#fff" />
-      <circle cx="11" cy="12.4" r="1.5" fill="#fff" />
-    </svg>
   );
 }

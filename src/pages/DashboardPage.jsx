@@ -1,18 +1,30 @@
 // Dashboard. Owner: Yehia.
 //
-// The overview the app opens on. Everything here comes from the Route & Stop
-// API and from endpoints any logged-in role may call, so a parent and an
-// admin both get a useful first screen.
+// The overview the app opens on. Everything comes from the Route & Stop API,
+// from endpoints any logged-in role may call, so a parent and an admin both
+// get a useful first screen.
 //
-// The numbers are counted from the same two requests the page already needs
-// for its charts, rather than from a dedicated stats endpoint: three routes
-// and a fortnight of trips is a small amount of data, and a stats endpoint
-// that disagrees with the chart beside it is worse than no stats endpoint.
+// The numbers are counted from the same two requests the charts already
+// need, rather than from a dedicated stats endpoint: three routes and a
+// fortnight of trips is a small amount of data, and a stats endpoint that
+// disagrees with the chart beside it is worse than no stats endpoint.
+//
+// React styles only, using the shared tokens, so this page matches Ali's.
 
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../api';
 import { StopsByRouteChart, TripsByDayChart } from './routes/Charts';
-import { ErrorBanner, Spinner, addDaysIso, formatIsoDate, todayIso } from './routes/ui';
+import {
+  Badge,
+  Btn,
+  ErrorBanner,
+  Spinner,
+  addDaysIso,
+  formatIsoDate,
+  styles,
+  todayIso,
+  tokens,
+} from './routes/ui';
 
 const WINDOW_DAYS = 14;
 
@@ -28,9 +40,7 @@ export default function DashboardPage({ onNavigate }) {
       const token = localStorage.getItem('token');
       if (!token) {
         if (!cancelled) {
-          setError(
-            Object.assign(new Error('Please log in to see the dashboard.'), { status: 401 })
-          );
+          setError(Object.assign(new Error('Please log in to see the dashboard.'), { status: 401 }));
           setLoading(false);
         }
         return;
@@ -75,95 +85,94 @@ export default function DashboardPage({ onNavigate }) {
     .slice(0, 6);
 
   return (
-    <div style={{ display: 'grid', gap: 14 }}>
-      {/* Hero: the one number the page is about, with its context beside it
-          rather than as a second tile. */}
-      <section className="panel">
-        <p className="stat-label">Runs scheduled over the next {WINDOW_DAYS} days</p>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-          <p className="hero-value">{active}</p>
-          {cancelled > 0 && (
-            <span className="delta delta-bad">✕ {cancelled} cancelled</span>
-          )}
-          {cancelled === 0 && trips.length > 0 && (
-            <span className="delta delta-good">✓ none cancelled</span>
-          )}
-        </div>
-        <p className="stat-label" style={{ marginTop: 6 }}>
-          {formatIsoDate(from)} — {formatIsoDate(to)}
-        </p>
-        <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-          <button type="button" className="btn-accent" onClick={() => onNavigate('routes')}>
-            Manage routes
-          </button>
-          <button type="button" onClick={() => onNavigate('favorites')}>
-            My stops
-          </button>
-          <button type="button" onClick={() => onNavigate('alerts')}>
-            Alerts
-          </button>
-        </div>
-      </section>
+    <section>
+      <h2 style={styles.pageTitle}>Dashboard</h2>
 
-      <section className="grid grid-3">
+      {/* The one number the page is about, with its context beside it rather
+          than as a second tile. */}
+      <div style={styles.card}>
+        <p style={{ ...styles.muted, margin: 0 }}>
+          Runs scheduled over the next {WINDOW_DAYS} days
+        </p>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+          <p style={{ fontSize: 40, fontWeight: 700, margin: '4px 0 0', color: tokens.text }}>
+            {active}
+          </p>
+          {cancelled > 0 && <Badge tone="bad">{cancelled} cancelled</Badge>}
+          {cancelled === 0 && trips.length > 0 && <Badge tone="good">None cancelled</Badge>}
+        </div>
+        <p style={{ ...styles.muted, marginTop: 6 }}>
+          {formatIsoDate(from)} to {formatIsoDate(to)}
+        </p>
+        <div style={{ ...styles.row, marginTop: 14 }}>
+          <Btn primary onClick={() => onNavigate('routes')}>
+            Manage routes
+          </Btn>
+          <Btn onClick={() => onNavigate('favorites')}>My stops</Btn>
+          <Btn onClick={() => onNavigate('alerts')}>Alerts</Btn>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gap: 14,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+        }}
+      >
         <StatTile label="Routes" value={routes.length} note={`${totalStops} stops in total`} />
         <StatTile
           label="Average stops per route"
           value={routes.length ? (totalStops / routes.length).toFixed(1) : '0'}
           note={
             routesWithoutStops > 0
-              ? `⚠ ${routesWithoutStops} route${routesWithoutStops === 1 ? '' : 's'} with no stops`
-              : 'every route has stops'
+              ? `${routesWithoutStops} route${routesWithoutStops === 1 ? '' : 's'} with no stops`
+              : 'Every route has stops'
           }
-          noteTone={routesWithoutStops > 0 ? 'warning' : undefined}
+          warn={routesWithoutStops > 0}
         />
         <StatTile
           label="Cancellation rate"
           value={trips.length ? `${Math.round((cancelled / trips.length) * 100)}%` : '—'}
           note={`${cancelled} of ${trips.length} runs`}
         />
-      </section>
+      </div>
 
-      <section className="grid grid-main">
-        <div className="panel">
-          <TripsByDayChart days={days} />
-        </div>
-        <div className="panel">
-          <div className="panel-head">
-            <h3>Stops on each route</h3>
-          </div>
-          <StopsByRouteChart routes={routes.slice(0, 8)} />
-        </div>
-      </section>
+      <div style={{ ...styles.card, marginTop: 14 }}>
+        <TripsByDayChart days={days} />
+      </div>
 
-      <section className="panel">
-        <div className="panel-head">
-          <h3>Cancellations ahead</h3>
-          <button type="button" onClick={() => onNavigate('routes')}>
-            All trips
-          </button>
+      <div style={styles.card}>
+        <h3 style={styles.cardTitle}>Stops on each route</h3>
+        <StopsByRouteChart routes={routes.slice(0, 8)} />
+      </div>
+
+      <div style={styles.card}>
+        <div style={{ ...styles.row, marginBottom: 10 }}>
+          <h3 style={{ ...styles.cardTitle, flex: 1, margin: 0 }}>Cancellations ahead</h3>
+          <Btn onClick={() => onNavigate('routes')}>All trips</Btn>
         </div>
         {cancellations.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+          <p style={{ ...styles.muted, margin: 0 }}>
             No cancellations in the next {WINDOW_DAYS} days.
           </p>
         ) : (
-          <table>
+          <table style={styles.table}>
             <thead>
               <tr>
-                <th>Day</th>
-                <th>Route</th>
-                <th>Run</th>
-                <th>Reason</th>
+                <th style={styles.th}>Day</th>
+                <th style={styles.th}>Route</th>
+                <th style={styles.th}>Run</th>
+                <th style={styles.th}>Reason</th>
               </tr>
             </thead>
             <tbody>
               {cancellations.map((trip) => (
                 <tr key={trip.id}>
-                  <td>{formatIsoDate(trip.service_date)}</td>
-                  <td>{trip.route_code}</td>
-                  <td>{trip.run_type}</td>
-                  <td style={{ color: 'var(--text-secondary)' }}>
+                  <td style={styles.td}>{formatIsoDate(trip.service_date)}</td>
+                  <td style={styles.td}>{trip.route_code}</td>
+                  <td style={styles.td}>{trip.run_type}</td>
+                  <td style={{ ...styles.td, color: tokens.grey }}>
                     {trip.cancellation_reason || '—'}
                   </td>
                 </tr>
@@ -171,21 +180,37 @@ export default function DashboardPage({ onNavigate }) {
             </tbody>
           </table>
         )}
-      </section>
-    </div>
+      </div>
+    </section>
   );
 }
 
-function StatTile({ label, value, note, noteTone }) {
+function StatTile({ label, value, note, warn }) {
   return (
-    <div className="panel">
-      <p className="stat-label">{label}</p>
-      <p className="stat-value">{value}</p>
+    <div
+      style={{
+        ...styles.card,
+        marginBottom: 0,
+        // A route with no stops cannot have a trip, so it is worth a warning
+        // colour. The words say it too; the colour is never the only cue.
+        ...(warn ? { background: tokens.warnBg, borderColor: tokens.warnBorder } : null),
+      }}
+    >
+      <p style={{ ...styles.muted, margin: 0, color: warn ? tokens.warnText : tokens.grey }}>
+        {label}
+      </p>
+      <p
+        style={{
+          fontSize: 26,
+          fontWeight: 700,
+          margin: '4px 0 0',
+          color: warn ? tokens.warnText : tokens.text,
+        }}
+      >
+        {value}
+      </p>
       {note && (
-        <p
-          className="stat-label"
-          style={{ marginTop: 6, color: noteTone === 'warning' ? 'var(--warning)' : undefined }}
-        >
+        <p style={{ ...styles.muted, marginTop: 6, color: warn ? tokens.warnText : tokens.grey }}>
           {note}
         </p>
       )}

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiRequest } from '../../api';
 import {
   Badge,
+  Btn,
   Empty,
   ErrorBanner,
   Field,
@@ -96,20 +97,20 @@ export default function ParentView() {
 
       {results && results.pages > 1 && (
         <div style={styles.row}>
-          <button type="button" onClick={() => setPage((p) => p - 1)} disabled={page <= 1}>
+          <Btn onClick={() => setPage((p) => p - 1)} disabled={page <= 1}>
             Previous
-          </button>
+          </Btn>
           <span style={styles.muted}>
             Page {results.page} of {results.pages} · {results.total} route
             {results.total === 1 ? '' : 's'}
           </span>
-          <button
+          <Btn
             type="button"
             onClick={() => setPage((p) => p + 1)}
             disabled={page >= results.pages}
           >
             Next
-          </button>
+          </Btn>
         </div>
       )}
     </section>
@@ -176,9 +177,9 @@ function RouteCard({ route, expanded, onToggle }) {
           {route.stop_count} stop{route.stop_count === 1 ? '' : 's'}
         </Badge>
         {route.is_active === false && <Badge tone="bad">Not running</Badge>}
-        <button type="button" onClick={onToggle}>
+        <Btn onClick={onToggle}>
           {expanded ? 'Hide' : 'Details'}
-        </button>
+        </Btn>
       </div>
 
       {expanded && (

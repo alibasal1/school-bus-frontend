@@ -3,7 +3,17 @@
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../api';
 import { newIdempotencyKey, turnstileHeaders } from './turnstile';
-import { Badge, BusyButton, Empty, ErrorBanner, Field, Spinner, styles, useAction } from './ui';
+import {
+  Badge,
+  Btn,
+  BusyButton,
+  Empty,
+  ErrorBanner,
+  Field,
+  Spinner,
+  styles,
+  useAction,
+} from './ui';
 
 export function RoutesTab({ routes, loading, error, reload }) {
   const [openId, setOpenId] = useState(null);
@@ -138,12 +148,12 @@ function RouteRow({ route, open, onToggle, reload }) {
         <Badge tone={route.is_active ? 'good' : 'bad'}>
           {route.is_active ? 'Active' : 'Retired'}
         </Badge>
-        <button type="button" onClick={onToggle}>
+        <Btn onClick={onToggle}>
           {open ? 'Close' : 'Stops'}
-        </button>
-        <button type="button" onClick={() => setEditing((value) => !value)}>
+        </Btn>
+        <Btn onClick={() => setEditing((value) => !value)}>
           {editing ? 'Cancel' : 'Rename'}
-        </button>
+        </Btn>
         <BusyButton busy={busy} onClick={() => setActive(!route.is_active)}>
           {route.is_active ? 'Retire' : 'Reactivate'}
         </BusyButton>
