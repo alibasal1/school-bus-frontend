@@ -2,6 +2,38 @@ import { useEffect, useState } from 'react';
 import { apiRequest } from '../api';
 import { getSession } from '../auth';
 
+// My service has its own API address (VITE_FAVORITES_API_URL). The shared
+// api.js only knows Ahmed's gateway, which has no /api/favorites routes, so
+// this page calls my API directly with the same signed-in session token.
+// Sessions live in the shared Sessions table, so my API accepts the token.
+// Without the variable the page falls back to the shared apiRequest.
+const MY_API = (import.meta.env.VITE_FAVORITES_API_URL || '').replace(/\/$/, '');
+
+async function myApi(path, { method = 'GET', body } = {}) {
+  if (!MY_API) return apiRequest('favorites', path, { method, body });
+  const session = getSession();
+  if (!session) {
+    throw Object.assign(new Error('Sign in with your email and password to continue.'), { status: 401 });
+  }
+  const res = await fetch(`${MY_API}${path}`, {
+    method,
+    headers: {
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      Authorization: `Bearer ${session.token}`
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined
+  });
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw Object.assign(new Error(data?.error?.message || `Request failed (${res.status}).`), {
+      status: res.status,
+      code: data?.error?.code
+    });
+  }
+  return data;
+}
+
 // The badge on each alert says what kind of message it is.
 const TYPE_LABELS = {
   boarding: { text: 'Boarded', badge: 'badge' },
@@ -9,6 +41,8 @@ const TYPE_LABELS = {
   dropped: { text: 'Dropped off', badge: 'badge' },
   cancel: { text: 'Cancelled', badge: 'badge badge--danger' },
   trip_change: { text: 'Trip change', badge: 'badge badge--warn' },
+  // Ahmed's worker writes the type with a space.
+  'trip change': { text: 'Trip change', badge: 'badge badge--warn' },
   holiday: { text: 'Holiday', badge: 'badge badge--warn' }
 };
 
@@ -47,7 +81,7 @@ export default function AlertsPage() {
     setLoading(true);
     try {
       const path = onlyUnread ? '/api/alerts?unread=true' : '/api/alerts';
-      const data = await apiRequest('favorites', path);
+      const data = await myApi(path);
       setAlerts(data.alerts);
       setError('');
     } catch (err) {
@@ -74,7 +108,7 @@ export default function AlertsPage() {
 
   async function markAsRead(id) {
     try {
-      const data = await apiRequest('favorites', `/api/alerts/${id}`, {
+      const data = await myApi(`/api/alerts/${id}`, {
         method: 'PATCH',
         body: { isRead: true }
       });
@@ -99,7 +133,7 @@ export default function AlertsPage() {
     let done = 0;
     try {
       for (const alert of unread) {
-        await apiRequest('favorites', `/api/alerts/${alert.id}`, {
+        await myApi(`/api/alerts/${alert.id}`, {
           method: 'PATCH',
           body: { isRead: true }
         });

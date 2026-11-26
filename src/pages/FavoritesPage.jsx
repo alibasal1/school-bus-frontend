@@ -2,6 +2,38 @@ import { useEffect, useState } from 'react';
 import { apiRequest } from '../api';
 import { getSession } from '../auth';
 
+// My service has its own API address (VITE_FAVORITES_API_URL). The shared
+// api.js only knows Ahmed's gateway, which has no /api/favorites routes, so
+// this page calls my API directly with the same signed-in session token.
+// Sessions live in the shared Sessions table, so my API accepts the token.
+// Without the variable the page falls back to the shared apiRequest.
+const MY_API = (import.meta.env.VITE_FAVORITES_API_URL || '').replace(/\/$/, '');
+
+async function myApi(path, { method = 'GET', body } = {}) {
+  if (!MY_API) return apiRequest('favorites', path, { method, body });
+  const session = getSession();
+  if (!session) {
+    throw Object.assign(new Error('Sign in with your email and password to continue.'), { status: 401 });
+  }
+  const res = await fetch(`${MY_API}${path}`, {
+    method,
+    headers: {
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      Authorization: `Bearer ${session.token}`
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined
+  });
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw Object.assign(new Error(data?.error?.message || `Request failed (${res.status}).`), {
+      status: res.status,
+      code: data?.error?.code
+    });
+  }
+  return data;
+}
+
 // "2027-01-07" -> "Thu 7 Jan 2027". The date is read as UTC so the day
 // never shifts with the browser's time zone.
 function holidayDate(value) {
@@ -36,7 +68,7 @@ export default function FavoritesPage() {
 
   async function loadFavorites() {
     try {
-      const data = await apiRequest('favorites', '/api/favorites');
+      const data = await myApi('/api/favorites');
       setFavorites(data.favorites);
       setError('');
     } catch (err) {
@@ -48,7 +80,7 @@ export default function FavoritesPage() {
 
   async function loadOptions() {
     try {
-      const data = await apiRequest('favorites', '/api/favorites/options');
+      const data = await myApi('/api/favorites/options');
       setRoutes(data.routes || []);
     } catch (err) {
       // The saved list still works without the form, so this is not a page error.
@@ -66,10 +98,10 @@ export default function FavoritesPage() {
       const year = Number(today.slice(0, 4));
       const upcoming = (list) => (list || []).filter((holiday) => holiday.date >= today);
 
-      const data = await apiRequest('favorites', `/api/holidays?year=${year}`);
+      const data = await myApi(`/api/holidays?year=${year}`);
       let next = upcoming(data.holidays);
       if (next.length < 3) {
-        const following = await apiRequest('favorites', `/api/holidays?year=${year + 1}`);
+        const following = await myApi(`/api/holidays?year=${year + 1}`);
         next = next.concat(upcoming(following.holidays));
       }
       next = next
@@ -113,7 +145,7 @@ export default function FavoritesPage() {
     }
     setSaving(true);
     try {
-      await apiRequest('favorites', '/api/favorites', {
+      await myApi('/api/favorites', {
         method: 'POST',
         body: { routeId, stopId: stopId || null }
       });
@@ -132,7 +164,7 @@ export default function FavoritesPage() {
 
   async function removeFavorite(id) {
     try {
-      await apiRequest('favorites', `/api/favorites/${id}`, { method: 'DELETE' });
+      await myApi(`/api/favorites/${id}`, { method: 'DELETE' });
       setFavorites((current) => current.filter((favorite) => favorite.id !== id));
       setError('');
       confirm('Stop removed.');
