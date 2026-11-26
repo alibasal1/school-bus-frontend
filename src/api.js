@@ -1,29 +1,59 @@
-import { API_URLS } from './config';
+import { FLOCI_CONFIG } from './config';
+import { getSession } from './auth';
 
-// One helper for every call to the APIs (Lab 5 apiRequest, React version).
-// service is 'routes' (Yehia), 'schedule' (Ahmed, also login) or 'favorites' (Ali).
-//
-// Changed 24/11 by Yehia, additions only — existing calls behave exactly as
-// before. See the three notes marked ADDED below.
-export async function apiRequest(service, path, { method = 'GET', body, headers } = {}) {
-  const token = localStorage.getItem('token');
-  const res = await fetch(`${API_URLS[service]}${path}`, {
+function splitPathAndQuery(path) {
+  const idx = path.indexOf('?');
+  if (idx === -1) return { cleanPath: path, search: '' };
+  return { cleanPath: path.slice(0, idx), search: path.slice(idx) };
+}
+
+function resolveBaseUrl() {
+  const base = FLOCI_CONFIG.apiGatewayBase.replace(/\/$/, '');
+  if (base.startsWith('http://') || base.startsWith('https://')) {
+    const parsed = new URL(base);
+    return {
+      fetchOrigin: parsed.origin,
+      basePath: parsed.pathname.replace(/\/$/, ''),
+    };
+  }
+  return {
+    fetchOrigin: '',
+    basePath: base,
+  };
+}
+
+/**
+ * Sends a request to the backend API Gateway using the signed-in app session.
+ */
+export async function apiRequestWithMeta(path, { method = 'GET', body, headers, skipAuth = false } = {}) {
+  const { cleanPath, search } = splitPathAndQuery(path);
+  const { fetchOrigin, basePath } = resolveBaseUrl();
+  const fullPathname = `${basePath}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
+  const url = `${fetchOrigin}${fullPathname}${search}`;
+  const bodyString = body !== undefined ? JSON.stringify(body) : '';
+
+  let authHeaders = {};
+  if (!skipAuth) {
+    const session = getSession();
+    if (!session) {
+      throw buildError('Sign in with your email and password to continue.', {
+        status: 401,
+        code: 'NO_LOCAL_SESSION',
+      });
+    }
+    authHeaders = { Authorization: `Bearer ${session.token}` };
+  }
+
+  const res = await fetch(url, {
     method,
     headers: {
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      // ADDED 1: optional per-call headers. The Route & Stop API accepts
-      // Idempotency-Key on creates (so a double click cannot make two routes)
-      // and X-Turnstile-Token on writes. Callers that pass nothing are
-      // unaffected: spreading undefined adds no keys.
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...authHeaders,
       ...(headers || {}),
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? bodyString : undefined,
   });
 
-  // ADDED 2: rate limiting. The Route & Stop API answers 429 with a
-  // Retry-After header. Without this the user saw "Request failed", which
-  // gives them no idea that waiting is the fix.
   if (res.status === 429) {
     const seconds = Number(res.headers.get('Retry-After')) || 30;
     throw buildError(
@@ -32,29 +62,37 @@ export async function apiRequest(service, path, { method = 'GET', body, headers 
     );
   }
 
-  if (res.status === 204) return null;
+  const meta = {
+    status: res.status,
+    cacheStatus: res.headers.get('X-Cache') || null,
+    nextCursor: res.headers.get('X-Next-Cursor') || null,
+    requestId: res.headers.get('X-Request-Id') || null,
+  };
 
-  // ADDED 3: a response that is not JSON no longer crashes with a parser
-  // error. A gateway timeout or a Vercel error page is HTML, and res.json()
-  // threw "Unexpected token <", which told nobody anything.
+  if (res.status === 204) return { data: null, meta };
+
   const data = await res.json().catch(() => null);
-
   if (!res.ok) {
     throw buildError(data?.error?.message || `Request failed (${res.status}).`, {
       status: res.status,
       code: data?.error?.code,
-      // Conflicts from the Route & Stop API arrive here, e.g. the list of
-      // reasons a trip clashes with the timetable.
       details: data?.error?.details,
-      requestId: data?.error?.request_id,
+      requestId: data?.error?.request_id || meta.requestId,
     });
   }
+
+  return { data, meta };
+}
+
+export async function apiRequest(pathOrService, optionsOrPath = {}, legacyOptions = {}) {
+  // Older team pages pass a service key before the path; all services now use
+  // the same backend API Gateway, so accept both signatures during migration.
+  const path = typeof optionsOrPath === 'string' ? optionsOrPath : pathOrService;
+  const options = typeof optionsOrPath === 'string' ? legacyOptions : optionsOrPath;
+  const { data } = await apiRequestWithMeta(path, options);
   return data;
 }
 
-// The thrown value is still an Error whose .message reads the same as before,
-// so any page that only shows err.message keeps working untouched. The extra
-// fields are there for callers that want them.
 function buildError(message, extra) {
   return Object.assign(new Error(message), extra);
 }

@@ -2,19 +2,17 @@
 
 School Bus Route Tracker, Team 14 (Lab Group A-2), 26CSCN29H.
 
-The React app (Vite) for the whole team. It talks to three backend services, each in its own repo:
+The React app (Vite) for School Bus Route Tracker. Authentication and the schedule use the Floci-backed Node.js API in `school-bus-ahmedservice`:
 
-| Repo | Pages that call it | Owner | Local port |
-|---|---|---|---|
-| `school-bus-route-stop` | RoutesPage | Yehia | 3001 |
-| `school-bus-schedule-arrival` | SchedulePage, LoginPage | Ahmed | 3002 |
-| `school-bus-favorites-alerts` | FavoritesPage, AlertsPage | Ali | 3003 |
+| Repo | Pages | Local access |
+|---|---|---|
+| `school-bus-ahmedservice` | signup, login, routes, schedule, alerts, favorites APIs | Floci API Gateway, `http://localhost:4566` |
 
-Every call goes through `src/api.js`:
+Every API call goes through `src/api.js` and uses the current bearer session:
 
 ```
-apiRequest('favorites', '/api/favorites')
-apiRequest('routes', '/api/routes', { method: 'POST', body: { ... } })
+apiRequest('/api/routes')
+apiRequest('/api/trips/:id/eta')
 ```
 
 ## Run on your laptop
@@ -25,12 +23,14 @@ npm install
 npm run dev                  (site on http://localhost:5173)
 ```
 
-Run the backend services you need at the same time (each one with `npm run dev` in its own repo).
+Run the Floci-backed backend in `school-bus-ahmedservice` and start this Vite app. The frontend runs at `http://localhost:5173`; Vite proxies `/restapis` requests to Floci.
 
-`apiRequest` takes an optional third argument:
+Signup uses name, email, and password. It creates a parent profile in DynamoDB, hashes passwords with bcrypt, and signs the user in with an 8-hour session. Admin and supervisor roles are reserved for operator-provisioned accounts.
+
+`apiRequest` accepts an optional options object:
 
 ```
-apiRequest('routes', '/api/routes', {
+apiRequest('/api/routes', {
   method: 'POST',
   body: { ... },
   headers: { 'Idempotency-Key': '...' },   // optional, merged in
@@ -44,9 +44,9 @@ the message are unaffected.
 
 ## Rules
 
-- Each member edits only his own pages. `App.jsx`, `api.js` and `config.js` change only after telling the group.
+- Shared app entrypoints, API authentication, and API client changes affect all pages.
 - Work on a branch, open a pull request, merge after checking it.
 
 ## Deploy (Lab 5)
 
-One Vercel project for this repo. Add the three `VITE_..._API_URL` values (the Vercel links of the three APIs) in the Vercel dashboard.
+One Vercel project for this repo. Set `VITE_API_GATEWAY_BASE` to the deployed API base path or full API URL.
