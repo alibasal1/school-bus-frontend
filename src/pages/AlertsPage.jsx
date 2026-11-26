@@ -1,76 +1,15 @@
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../api';
+import { getSession } from '../auth';
 
-// Colors and shapes for this page. Kept here (no global CSS) so this page
-// looks the same whatever the rest of the app does.
-const C = {
-  blue: '#1f3b73',
-  lightBlue: '#e6ecf7',
-  text: '#1f2533',
-  grey: '#6b7385',
-  border: '#e2e6ee',
-  yellowText: '#9a5b00',
-  red: '#c0392b',
-  green: '#1e7b4f'
-};
-
-const styles = {
-  page: { maxWidth: 1000, margin: '0 auto', color: C.text, background: '#ffffff' },
-  header: { display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0 14px' },
-  title: { fontSize: 34, fontWeight: 'bold', color: C.text, margin: 0 },
-  pill: {
-    background: C.lightBlue,
-    color: C.blue,
-    fontWeight: 'bold',
-    fontSize: 14,
-    padding: '4px 12px',
-    borderRadius: 999
-  },
-  toolbar: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16, marginBottom: 16 },
-  filter: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, color: C.text },
-  mainButton: {
-    padding: '8px 16px',
-    fontSize: 15,
-    color: '#ffffff',
-    background: C.blue,
-    border: `1px solid ${C.blue}`,
-    borderRadius: 8,
-    cursor: 'pointer'
-  },
-  // A real <button> that looks like a link, so it still works with the keyboard.
-  linkButton: {
-    padding: 0,
-    fontSize: 15,
-    color: '#1a0dab',
-    background: 'none',
-    border: 'none',
-    textDecoration: 'underline',
-    cursor: 'pointer'
-  },
-  success: { color: C.green, fontSize: 14, margin: '0 0 12px' },
-  failure: { color: C.red, fontSize: 14, margin: '0 0 12px' },
-  loading: { color: C.grey, margin: '0 0 12px' },
-  list: { listStyle: 'none', padding: 0, margin: 0 },
-  card: {
-    background: '#ffffff',
-    border: `1px solid ${C.border}`,
-    borderRadius: 12,
-    padding: '20px 22px',
-    marginBottom: 14
-  },
-  greyCard: { background: '#f7f8fb', color: C.grey },
-  message: { margin: 0, fontSize: 17 },
-  meta: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, fontSize: 15, color: C.grey }
-};
-
-// The colored bar on an unread alert says what kind of message it is.
-const BAR_COLORS = {
-  boarding: C.blue,
-  almost_dropped: C.blue,
-  dropped: C.blue,
-  cancel: C.red,
-  trip_change: C.red,
-  holiday: C.yellowText
+// The badge on each alert says what kind of message it is.
+const TYPE_LABELS = {
+  boarding: { text: 'Boarded', badge: 'badge' },
+  almost_dropped: { text: 'Almost there', badge: 'badge' },
+  dropped: { text: 'Dropped off', badge: 'badge' },
+  cancel: { text: 'Cancelled', badge: 'badge badge--danger' },
+  trip_change: { text: 'Trip change', badge: 'badge badge--warn' },
+  holiday: { text: 'Holiday', badge: 'badge badge--warn' }
 };
 
 // "Today 07:14", "Yesterday 20:00" or "21 Nov 18:18", in Cairo time.
@@ -89,7 +28,9 @@ function alertTime(value) {
 // Alerts page. Owner: Ali (246090).
 // The filter asks the API for unread alerts only (?unread=true) instead of
 // hiding rows in the browser, so the parent always sees fresh data.
+// The look comes from the shared theme (src/styles/theme.css), like Ahmed's pages.
 export default function AlertsPage() {
+  const session = getSession();
   const [alerts, setAlerts] = useState([]);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [error, setError] = useState('');
@@ -117,6 +58,11 @@ export default function AlertsPage() {
   }
 
   useEffect(() => {
+    // No session: the Sign in block is shown and nothing is asked from the API.
+    if (!session) {
+      setLoading(false);
+      return;
+    }
     loadAlerts(unreadOnly);
   }, [unreadOnly]);
 
@@ -169,64 +115,87 @@ export default function AlertsPage() {
     }
   }
 
-  const markAllDisabled = busy || unreadCount === 0;
-
-  function cardStyle(alert) {
-    if (alert.isRead) return { ...styles.card, opacity: 0.6 };
-    return {
-      ...styles.card,
-      borderLeft: `5px solid ${BAR_COLORS[alert.type] || C.blue}`
-    };
+  if (!session) {
+    return (
+      <section className="wrap" style={{ maxWidth: 480, margin: '80px auto', textAlign: 'center', padding: '0 16px' }}>
+        <p className="hero-eyebrow">SCHOOL BUS ROUTE TRACKER</p>
+        <h2 style={{ margin: '0 0 10px', fontSize: 24, color: 'var(--p-ink)' }}>Sign in to see your alerts</h2>
+        <p style={{ color: 'var(--p-muted)', fontSize: 14, marginBottom: 24 }}>Boarding, drop-off and trip alerts are available after you sign in.</p>
+        <a href="#/login" className="btn btn--primary">Sign in</a>
+        <a href="#/signup" className="btn" style={{ marginLeft: 8 }}>Create account</a>
+      </section>
+    );
   }
 
   return (
-    <section style={styles.page}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>Alerts</h2>
-        <span style={styles.pill}>{unreadCount} unread</span>
+    <section className="wrap" style={{ maxWidth: 1080, margin: '32px auto', padding: '0 16px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, marginBottom: 26 }}>
+        <div>
+          <p className="hero-eyebrow" style={{ marginBottom: 12 }}>SCHOOL BUS ROUTE TRACKER</p>
+          <h2 style={{ margin: '0 0 4px', fontSize: 28, fontWeight: 500, letterSpacing: '-0.02em', color: 'var(--p-ink)' }}>
+            Alerts <span className="badge badge--accent" style={{ verticalAlign: 'middle' }}>{unreadCount} unread</span>
+          </h2>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--p-muted)' }}>Boarding, drop-off, trip and holiday messages for your child.</p>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+          <label htmlFor="unread-filter" className="field__label" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <input
+              id="unread-filter"
+              type="checkbox"
+              checked={unreadOnly}
+              onChange={(event) => setUnreadOnly(event.target.checked)}
+              style={{ accentColor: 'var(--p-accent)', width: 16, height: 16 }}
+            />
+            Unread only
+          </label>
+          <button type="button" className="btn btn--primary btn--sm" onClick={markAllAsRead} disabled={busy || unreadCount === 0}>
+            {busy ? 'Marking...' : 'Mark all as read'}
+          </button>
+        </div>
       </div>
 
-      <div style={styles.toolbar}>
-        <label htmlFor="unread-filter" style={styles.filter}>
-          <input
-            id="unread-filter"
-            type="checkbox"
-            checked={unreadOnly}
-            onChange={(event) => setUnreadOnly(event.target.checked)}
-          />
-          Unread only
-        </label>
-
-        <button
-          onClick={markAllAsRead}
-          disabled={markAllDisabled}
-          style={{ ...styles.mainButton, opacity: markAllDisabled ? 0.5 : 1, cursor: markAllDisabled ? 'default' : 'pointer' }}
-        >
-          {busy ? 'Marking...' : 'Mark all as read'}
-        </button>
-      </div>
-
-      {message && <p role="status" style={styles.success}>{message}</p>}
-      {error && <p role="alert" style={styles.failure}>{error}</p>}
-      {loading && <p style={styles.loading}>Loading alerts...</p>}
+      {message && <div className="banner banner--success" role="status">{message}</div>}
+      {error && <div className="banner banner--error" role="alert">{error}</div>}
+      {loading && <div className="card muted">Loading alerts...</div>}
       {!loading && !error && alerts.length === 0 && (
-        <div style={{ ...styles.card, ...styles.greyCard }}>
-          {unreadOnly ? 'No unread alerts.' : 'No alerts.'}
+        <div className="card schedule-empty">
+          <span className="schedule-empty__index">ALERTS</span>
+          <h3>{unreadOnly ? 'No unread alerts' : 'No alerts yet'}</h3>
+          <p>{unreadOnly ? 'You have read every alert.' : 'Messages about your bus will show here.'}</p>
         </div>
       )}
-      <ul style={styles.list}>
-        {alerts.map((alert) => (
-          <li key={alert.id} style={cardStyle(alert)}>
-            <p style={{ ...styles.message, fontWeight: alert.isRead ? 'normal' : 'bold' }}>{alert.message}</p>
-            <div style={styles.meta}>
-              <span>{alertTime(alert.createdAt)}</span>
-              <span>·</span>
-              {alert.isRead
-                ? <span>Read</span>
-                : <button style={styles.linkButton} onClick={() => markAsRead(alert.id)}>Mark as read</button>}
-            </div>
-          </li>
-        ))}
+
+      <ul className="row-list">
+        {alerts.map((alert) => {
+          const kind = TYPE_LABELS[alert.type] || { text: alert.type, badge: 'badge' };
+          return (
+            <li
+              key={alert.id}
+              className="card"
+              style={{
+                padding: '16px 18px',
+                opacity: alert.isRead ? 0.65 : 1,
+                boxShadow: alert.isRead ? 'none' : 'inset 3px 0 var(--p-accent)'
+              }}
+            >
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ display: 'grid', gap: 8, minWidth: 0, flex: '1 1 320px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                    <span className={kind.badge}>{kind.text}</span>
+                    {alert.isRead
+                      ? <span className="badge">Read</span>
+                      : <span className="badge badge--accent">Unread</span>}
+                    <span className="mono muted">{alertTime(alert.createdAt)}</span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 15, color: 'var(--p-ink)', fontWeight: alert.isRead ? 400 : 600 }}>{alert.message}</p>
+                </div>
+                {!alert.isRead && (
+                  <button type="button" className="btn btn--sm" onClick={() => markAsRead(alert.id)}>Mark as read</button>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

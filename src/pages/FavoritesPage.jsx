@@ -1,73 +1,6 @@
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../api';
-
-// Colors and shapes for this page. Kept here (no global CSS) so this page
-// looks the same whatever the rest of the app does.
-const C = {
-  blue: '#1f3b73',
-  text: '#1f2533',
-  grey: '#6b7385',
-  border: '#e2e6ee',
-  yellowBg: '#fff8ec',
-  yellowBorder: '#f2d9a6',
-  yellowText: '#9a5b00',
-  red: '#c0392b',
-  green: '#1e7b4f'
-};
-
-const styles = {
-  page: { maxWidth: 1000, margin: '0 auto', color: C.text, background: '#ffffff' },
-  title: { fontSize: 34, fontWeight: 'bold', color: C.text, margin: '8px 0 18px' },
-  card: {
-    background: '#ffffff',
-    border: `1px solid ${C.border}`,
-    borderRadius: 12,
-    padding: '20px 22px',
-    marginBottom: 14
-  },
-  yellowCard: { background: C.yellowBg, borderColor: C.yellowBorder },
-  greyCard: { background: '#f7f8fb', color: C.grey },
-  cardTitle: { fontSize: 18, margin: '0 0 12px' },
-  form: { display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' },
-  field: { display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 200px' },
-  label: { fontSize: 14, color: C.grey },
-  select: {
-    padding: '8px 10px',
-    fontSize: 15,
-    color: C.text,
-    background: '#ffffff',
-    border: `1px solid ${C.border}`,
-    borderRadius: 8
-  },
-  mainButton: {
-    padding: '9px 18px',
-    fontSize: 15,
-    color: '#ffffff',
-    background: C.blue,
-    border: `1px solid ${C.blue}`,
-    borderRadius: 8,
-    cursor: 'pointer'
-  },
-  button: {
-    padding: '7px 16px',
-    fontSize: 15,
-    color: C.text,
-    background: '#ffffff',
-    border: `1px solid ${C.border}`,
-    borderRadius: 8,
-    cursor: 'pointer'
-  },
-  success: { color: C.green, fontSize: 14, margin: '10px 0 0' },
-  failure: { color: C.red, fontSize: 14, margin: '10px 0 0' },
-  pageError: { color: C.red, fontSize: 14, margin: '0 0 12px' },
-  list: { listStyle: 'none', padding: 0, margin: 0 },
-  stopRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  routeName: { fontWeight: 'bold', fontSize: 18 },
-  stopName: { color: C.grey, fontSize: 15 },
-  arrival: { margin: '8px 0 0', fontSize: 17 },
-  noBus: { margin: '8px 0 0', fontSize: 17, color: C.yellowText },
-  holidayLine: { padding: '4px 0', color: C.text }
-};
+import { getSession } from '../auth';
 
 // "2027-01-07" -> "Thu 7 Jan 2027". The date is read as UTC so the day
 // never shifts with the browser's time zone.
@@ -81,7 +14,9 @@ function holidayDate(value) {
 // Everything on this page comes from my own service, including the routes and
 // stops for the form (GET /api/favorites/options). That way the page still
 // works when the Route & Stop API is down, and the parent calls one address.
+// The look comes from the shared theme (src/styles/theme.css), like Ahmed's pages.
 export default function FavoritesPage() {
+  const session = getSession();
   const [favorites, setFavorites] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [holidays, setHolidays] = useState([]);
@@ -148,6 +83,11 @@ export default function FavoritesPage() {
   }
 
   useEffect(() => {
+    // No session: the Sign in block is shown and nothing is asked from the API.
+    if (!session) {
+      setLoading(false);
+      return;
+    }
     loadFavorites();
     loadOptions();
     loadHolidays();
@@ -201,107 +141,151 @@ export default function FavoritesPage() {
     }
   }
 
-  function arrivalLine(favorite) {
-    // noBusToday is only true on a public holiday (see services/favorites.js).
+  // The next bus line and its badge. noBusToday is only true on a public holiday.
+  function arrival(favorite) {
     if (favorite.noBusToday) {
-      return <p style={styles.noBus}><strong>No bus today</strong> (public holiday)</p>;
+      return { time: null, text: 'No bus today (public holiday)', badge: <span className="badge badge--warn">Holiday</span> };
     }
-    if (!favorite.arrivalFrom) return <p style={styles.arrival}>No upcoming bus time today.</p>;
+    if (favorite.tripStatus === 'cancelled') {
+      return { time: null, text: "Today's trip is cancelled", badge: <span className="badge badge--danger">Cancelled</span> };
+    }
+    if (!favorite.arrivalFrom) {
+      return { time: null, text: 'No upcoming bus time today', badge: null };
+    }
+    return {
+      time: `${favorite.arrivalFrom.slice(0, 5)} - ${favorite.arrivalTo.slice(0, 5)}`,
+      text: 'Next bus',
+      badge: <span className="badge badge--accent">{favorite.tripStatus || 'scheduled'}</span>
+    };
+  }
+
+  if (!session) {
     return (
-      <p style={styles.arrival}>
-        Next bus <strong>{favorite.arrivalFrom.slice(0, 5)} – {favorite.arrivalTo.slice(0, 5)}</strong>
-      </p>
+      <section className="wrap" style={{ maxWidth: 480, margin: '80px auto', textAlign: 'center', padding: '0 16px' }}>
+        <p className="hero-eyebrow">SCHOOL BUS ROUTE TRACKER</p>
+        <h2 style={{ margin: '0 0 10px', fontSize: 24, color: 'var(--p-ink)' }}>Sign in to see your saved stops</h2>
+        <p style={{ color: 'var(--p-muted)', fontSize: 14, marginBottom: 24 }}>Your stops and their next bus times are available after you sign in.</p>
+        <a href="#/login" className="btn btn--primary">Sign in</a>
+        <a href="#/signup" className="btn" style={{ marginLeft: 8 }}>Create account</a>
+      </section>
     );
   }
 
-  if (loading) return <p style={{ color: C.grey }}>Loading saved stops...</p>;
-
   return (
-    <section style={styles.page}>
-      <h2 style={styles.title}>My stops</h2>
+    <section className="wrap" style={{ maxWidth: 1080, margin: '32px auto', padding: '0 16px' }}>
+      <div style={{ marginBottom: 26 }}>
+        <p className="hero-eyebrow" style={{ marginBottom: 12 }}>SCHOOL BUS ROUTE TRACKER</p>
+        <h2 style={{ margin: '0 0 4px', fontSize: 28, fontWeight: 500, letterSpacing: '-0.02em', color: 'var(--p-ink)' }}>My stops</h2>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--p-muted)' }}>Save the stops you use and see the next bus for each one.</p>
+      </div>
 
-      <form onSubmit={saveFavorite} style={styles.card}>
-        <h3 style={styles.cardTitle}>Save a stop</h3>
-        <div style={styles.form}>
-          <div style={styles.field}>
-            <label htmlFor="route" style={styles.label}>Route</label>
-            <select
-              id="route"
-              style={styles.select}
-              value={routeId}
-              onChange={(event) => onRouteChange(event.target.value)}
-            >
-              <option value="">Choose a route</option>
-              {routes.map((route) => (
-                <option key={route.id} value={route.id}>
-                  {route.code} {route.name}
-                </option>
-              ))}
-            </select>
+      {error && <div className="banner banner--error" role="alert">{error}</div>}
+
+      <div className="schedule-layout" style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 340px) minmax(0, 1fr)', gap: 24, alignItems: 'start' }}>
+        <form onSubmit={saveFavorite} className="card">
+          <div className="card__head">
+            <h3 className="card__title">Save a stop</h3>
           </div>
+          <p className="card__desc">Pick a route, then one stop or the whole route.</p>
+          <div className="form-grid" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>
+            <label className="field" htmlFor="route">
+              <span className="field__label">Route</span>
+              <select id="route" className="select" value={routeId} onChange={(event) => onRouteChange(event.target.value)}>
+                <option value="">Choose a route</option>
+                {routes.map((route) => (
+                  <option key={route.id} value={route.id}>
+                    {route.code} {route.name}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <div style={styles.field}>
-            <label htmlFor="stop" style={styles.label}>Stop</label>
-            <select
-              id="stop"
-              style={styles.select}
-              value={stopId}
-              onChange={(event) => setStopId(event.target.value)}
-              disabled={!routeId || stops.length === 0}
-            >
-              <option value="">Whole route</option>
-              {stops.map((stop) => (
-                <option key={stop.id} value={stop.id}>
-                  {stop.stopOrder}. {stop.name}
-                </option>
-              ))}
-            </select>
+            <label className="field" htmlFor="stop">
+              <span className="field__label">Stop</span>
+              <select
+                id="stop"
+                className="select"
+                value={stopId}
+                onChange={(event) => setStopId(event.target.value)}
+                disabled={!routeId || stops.length === 0}
+              >
+                <option value="">Whole route</option>
+                {stops.map((stop) => (
+                  <option key={stop.id} value={stop.id}>
+                    {stop.stopOrder}. {stop.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button type="submit" disabled={saving} className="btn btn--primary">
+              {saving ? 'Saving...' : 'Save stop'}
+            </button>
           </div>
+          {formError && <div className="banner banner--error" role="alert" style={{ marginTop: 14, marginBottom: 0 }}>{formError}</div>}
+          {message && <div className="banner banner--success" role="status" style={{ marginTop: 14, marginBottom: 0 }}>{message}</div>}
+        </form>
 
-          <button type="submit" disabled={saving} style={{ ...styles.mainButton, opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'Saving...' : 'Save stop'}
-          </button>
-        </div>
-        {formError && <p role="alert" style={styles.failure}>{formError}</p>}
-        {message && <p role="status" style={styles.success}>{message}</p>}
-      </form>
-
-      {error && <p role="alert" style={styles.pageError}>{error}</p>}
-      {!error && favorites.length === 0 && (
-        <div style={{ ...styles.card, ...styles.greyCard }}>You have not saved any stops yet.</div>
-      )}
-      <ul style={styles.list}>
-        {favorites.map((favorite) => (
-          <li
-            key={favorite.id}
-            style={{ ...styles.card, ...(favorite.noBusToday ? styles.yellowCard : {}) }}
-          >
-            <div style={styles.stopRow}>
-              <div>
-                <span style={styles.routeName}>{favorite.routeName}</span>
-                <span style={styles.stopName}> · {favorite.stopName || 'whole route'}</span>
-                {arrivalLine(favorite)}
-              </div>
-              <button style={styles.button} onClick={() => removeFavorite(favorite.id)}>Remove</button>
+        <div style={{ display: 'grid', gap: 18, minWidth: 0 }}>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ margin: 0, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--p-ink)' }}>Saved stops</h3>
+              <span className="badge">{loading ? 'Loading' : favorites.length}</span>
             </div>
-          </li>
-        ))}
-      </ul>
 
-      <aside style={styles.card}>
-        <h3 style={styles.cardTitle}>Upcoming holidays</h3>
-        {holidays.length === 0
-          ? <p style={{ margin: 0, color: C.grey }}>No holidays coming up.</p>
-          : (
-            <ul style={styles.list}>
-              {holidays.map((holiday) => (
-                <li key={holiday.date} style={styles.holidayLine}>
-                  {holidayDate(holiday.date)} · {holiday.name}
-                </li>
-              ))}
+            {loading && <div className="card muted">Loading saved stops...</div>}
+            {!loading && !error && favorites.length === 0 && (
+              <div className="card schedule-empty">
+                <span className="schedule-empty__index">MY STOPS</span>
+                <h3>No saved stops yet</h3>
+                <p>Save a stop with the form and its next bus time will show here.</p>
+              </div>
+            )}
+            <ul className="row-list">
+              {favorites.map((favorite) => {
+                const next = arrival(favorite);
+                return (
+                  <li key={favorite.id} className="card" style={{ padding: '16px 18px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--p-ink)' }}>{favorite.routeName}</div>
+                        <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>{favorite.stopName || 'Whole route'}</div>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
+                        <div className="schedule-arrival">
+                          {next.time ? <strong>{next.time}</strong> : null}
+                          <span>{next.text}</span>
+                        </div>
+                        {next.badge}
+                        <button type="button" className="btn btn--danger btn--sm" onClick={() => removeFavorite(favorite.id)}>Remove</button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
-          )}
-      </aside>
+          </div>
+
+          <aside className="card">
+            <div className="card__head">
+              <h3 className="card__title">Upcoming holidays</h3>
+              <span className="badge badge--warn">No bus</span>
+            </div>
+            {holidays.length === 0
+              ? <p className="muted" style={{ margin: 0 }}>No holidays coming up.</p>
+              : (
+                <ul className="row-list" style={{ gap: 8 }}>
+                  {holidays.map((holiday) => (
+                    <li key={holiday.date} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, paddingBottom: 8, borderBottom: '1px solid var(--p-border)' }}>
+                      <span style={{ color: 'var(--p-ink)' }}>{holiday.name}</span>
+                      <span className="mono muted">{holidayDate(holiday.date)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+          </aside>
+        </div>
+      </div>
     </section>
   );
 }
