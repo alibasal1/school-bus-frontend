@@ -15,7 +15,7 @@ import { getSession } from '../auth';
 import { currentRole, routesApi } from './routes/routesApi';
 import AdminView from './routes/AdminView';
 import ParentView from './routes/ParentView';
-import { Btn, Card, ErrorBanner, Spinner, styles } from './routes/ui';
+import { Btn, Card, ErrorBanner, PageErrorBoundary, Spinner, styles } from './routes/ui';
 
 export default function RoutesPage() {
   const [role, setRole] = useState(null);
@@ -108,7 +108,12 @@ export default function RoutesPage() {
 
       <ErrorBanner error={error} onDismiss={() => setError(null)} />
 
-      {isAdmin && !asParent ? <AdminView /> : <ParentView />}
+      {/* If anything below throws, the boundary shows a message here
+          instead of React unmounting the whole app and leaving a white
+          screen over Ali's and Ahmed's pages too. */}
+      <PageErrorBoundary>
+        {isAdmin && !asParent ? <AdminView /> : <ParentView />}
+      </PageErrorBoundary>
     </section>
   );
 }

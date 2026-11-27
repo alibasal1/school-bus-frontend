@@ -1,7 +1,7 @@
 // Admin: buses, and the pattern each route runs on. Owner: Yehia (247330).
 
 import { useEffect, useState } from 'react';
-import { newIdempotencyKey, routesApi } from './routesApi';
+import { asList, newIdempotencyKey, routesApi } from './routesApi';
 import {
   Badge,
   BusyButton,
@@ -28,7 +28,7 @@ export function BusesTab() {
   async function load() {
     try {
       const data = await routesApi('/api/buses');
-      setBuses(data.items);
+      setBuses(asList(data));
       setLoadError(null);
     } catch (caught) {
       setLoadError(caught);
@@ -156,7 +156,7 @@ export function ScheduleTab({ routes }) {
 
   useEffect(() => {
     routesApi('/api/buses')
-      .then((data) => setBuses(data.items))
+      .then((data) => setBuses(asList(data)))
       .catch(() => setBuses([]));
   }, []);
 
@@ -167,7 +167,7 @@ export function ScheduleTab({ routes }) {
     }
     routesApi(`/api/routes/${routeId}/schedule`)
       .then((data) => {
-        setSchedules(data.items);
+        setSchedules(asList(data));
         setLoadError(null);
       })
       .catch(setLoadError);
@@ -205,7 +205,7 @@ export function ScheduleTab({ routes }) {
     if (saved) {
       setDone(`Pattern saved for the ${form.run_type} run.`);
       const data = await routesApi(`/api/routes/${routeId}/schedule`);
-      setSchedules(data.items);
+      setSchedules(asList(data));
     }
   }
 

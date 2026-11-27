@@ -6,7 +6,7 @@
 // before it happens and then tells them.
 
 import { useCallback, useEffect, useState } from 'react';
-import { newIdempotencyKey, routesApi } from './routesApi';
+import { asList, newIdempotencyKey, routesApi } from './routesApi';
 import {
   Badge,
   Btn,
@@ -202,7 +202,7 @@ function TripList({ routes, refreshToken, onChanged }) {
         if (value) query.set(key, value);
       }
       const data = await routesApi(`/api/trips?${query}`);
-      setTrips(data.items);
+      setTrips(asList(data));
       setError(null);
     } catch (caught) {
       setError(caught);

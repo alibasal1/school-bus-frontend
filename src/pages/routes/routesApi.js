@@ -69,6 +69,33 @@ export async function routesApi(path, { method = 'GET', body, headers } = {}) {
   return data;
 }
 
+/**
+ * Read a list out of an API answer, whatever shape it arrives in.
+ *
+ * My API answers { items, page, total, pages }. Ahmed's gateway answers a
+ * plain array for some paths. Reading `answer.items.length` on an array
+ * gives "cannot read properties of undefined", which React turns into a
+ * blank page for the WHOLE app, not just this one component. That is far
+ * worse than showing an empty list, so every list read goes through here.
+ */
+export function asList(answer) {
+  if (Array.isArray(answer)) return answer;
+  if (answer && Array.isArray(answer.items)) return answer.items;
+  return [];
+}
+
+/** Paging numbers, with sane values when the answer carries none. */
+export function asPaging(answer, fallbackCount) {
+  const total = Number(answer?.total);
+  const pages = Number(answer?.pages);
+  const page = Number(answer?.page);
+  return {
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+    pages: Number.isFinite(pages) && pages > 0 ? pages : 1,
+    total: Number.isFinite(total) ? total : fallbackCount,
+  };
+}
+
 /** The signed-in user's role, or null when nobody is signed in. */
 export function currentRole() {
   const session = getSession();

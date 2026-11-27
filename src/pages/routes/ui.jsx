@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 
 // Shared pieces for the Route & Stop page. Owner: Yehia (247330).
 //
@@ -105,6 +105,48 @@ export function SuccessNote({ children, onDismiss }) {
       </div>
     </div>
   );
+}
+
+/**
+ * Stops a crash in this page from blanking the whole app.
+ *
+ * React unmounts the entire tree when a render throws, so one bad read in
+ * my page took out Ali's and Ahmed's pages with it. That is what happened
+ * with results.items.length. The reads are fixed, but a boundary means the
+ * next mistake costs one panel instead of the application, and the person
+ * seeing it gets a message instead of a white screen.
+ *
+ * A class because React only offers componentDidCatch on class components.
+ */
+export class PageErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    // Goes to the browser console so it can still be investigated.
+    console.error('Routes page crashed:', error, info?.componentStack);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="banner banner--error" role="alert">
+        <strong>Something went wrong on this page.</strong>
+        <p className="muted" style={{ margin: '8px 0 0' }}>
+          {this.state.error.message || 'Unknown error.'}
+        </p>
+        <Btn small onClick={() => this.setState({ error: null })} style={{ marginTop: 8 }}>
+          Try again
+        </Btn>
+      </div>
+    );
+  }
 }
 
 export function Spinner({ children = 'Loading...' }) {

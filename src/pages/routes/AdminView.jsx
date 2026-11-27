@@ -5,7 +5,7 @@
 // manage the trips.
 
 import { useCallback, useEffect, useState } from 'react';
-import { routesApi } from './routesApi';
+import { asList, routesApi } from './routesApi';
 import { RoutesTab } from './adminRoutes';
 import { BusesTab, ScheduleTab } from './adminFleet';
 import { TripsTab } from './adminTrips';
@@ -32,7 +32,7 @@ export default function AdminView() {
     setLoading(true);
     try {
       const data = await routesApi('/api/routes?limit=100&include_inactive=true');
-      setRoutes(data.items);
+      setRoutes(asList(data));
       setError(null);
     } catch (caught) {
       setError(caught);

@@ -6,7 +6,7 @@
 // for anyone else, so hiding them is a convenience and not the control.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { routesApi } from './routesApi';
+import { asList, asPaging, routesApi } from './routesApi';
 import { Badge, Btn, Card, Empty, ErrorBanner, Field, Spinner, Table, styles } from './ui';
 
 export default function ParentView() {
@@ -27,6 +27,8 @@ export default function ParentView() {
     try {
       const query = new URLSearchParams({ page: String(page), limit: '10' });
       if (term.trim()) query.set('search', term.trim());
+      // Kept as the raw answer, then read through asList/asPaging below,
+      // so an answer in another shape cannot blank the page.
       setResults(await routesApi(`/api/routes?${query}`));
       setError(null);
     } catch (caught) {
@@ -45,6 +47,12 @@ export default function ParentView() {
   useEffect(() => {
     setPage(1);
   }, [term]);
+
+  // My API answers { items, page, total, pages }; Ahmed's gateway answers a
+  // plain array on some paths. Reading .items.length on an array blanks the
+  // whole app, so both shapes are handled in one place.
+  const items = asList(results);
+  const paging = asPaging(results, items.length);
 
   return (
     <div style={styles.stack}>
@@ -65,14 +73,14 @@ export default function ParentView() {
 
       {loading && <Spinner>Looking for routes...</Spinner>}
 
-      {!loading && results && results.items.length === 0 && (
+      {!loading && results && items.length === 0 && (
         <Empty>
           {search.trim() ? `No route matches "${search.trim()}".` : 'There are no routes yet.'}
         </Empty>
       )}
 
       {!loading &&
-        results?.items.map((route) => (
+        items.map((route) => (
           <RouteCard
             key={route.id}
             route={route}
@@ -81,16 +89,16 @@ export default function ParentView() {
           />
         ))}
 
-      {results && results.pages > 1 && (
+      {paging.pages > 1 && (
         <div style={styles.row}>
           <Btn onClick={() => setPage((value) => value - 1)} disabled={page <= 1}>
             Previous
           </Btn>
           <span className="muted">
-            Page {results.page} of {results.pages}, {results.total} route
-            {results.total === 1 ? '' : 's'}
+            Page {paging.page} of {paging.pages}, {paging.total} route
+            {paging.total === 1 ? '' : 's'}
           </span>
-          <Btn onClick={() => setPage((value) => value + 1)} disabled={page >= results.pages}>
+          <Btn onClick={() => setPage((value) => value + 1)} disabled={page >= paging.pages}>
             Next
           </Btn>
         </div>
@@ -123,7 +131,7 @@ function RouteCard({ route, open, onToggle }) {
         ]);
         if (cancelled) return;
         setDetail(routeDetail);
-        setTrips(tripList.items);
+        setTrips(asList(tripList));
         setError(null);
       } catch (caught) {
         if (!cancelled) setError(caught);
