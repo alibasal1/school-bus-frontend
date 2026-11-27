@@ -1,46 +1,46 @@
-// Admin: generating trips, and cancelling them. Owner: Yehia.
+// Admin: generating trips, and cancelling them. Owner: Yehia (247330).
 //
-// The two screens the doctor's feedback is really about. Neither is a form
-// that writes a row: generation asks the server what *should* exist and
-// shows its reasoning before anything is written, and cancelling shows who
-// it affects before it happens.
+// The two screens the project is really about. Neither is a form that
+// writes a row: generation asks the server what should exist and shows its
+// reasoning before anything is written, and cancelling shows who it affects
+// before it happens and then tells them.
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiRequest } from '../../api';
-import { newIdempotencyKey } from './turnstile';
+import { newIdempotencyKey, routesApi } from './routesApi';
 import {
   Badge,
+  Btn,
   BusyButton,
+  Card,
   Empty,
   ErrorBanner,
   Field,
   Spinner,
-  addDaysIso,
+  SuccessNote,
+  Table,
   formatIsoDate,
   styles,
   todayIso,
   useAction,
 } from './ui';
 
-// The server's skip codes, in words. Shown instead of the raw code so the
+// The server's skip codes, in words. Shown instead of the raw code, so the
 // preview explains itself: a shorter list with no reasons looks like a bug.
 const SKIP_LABELS = {
-  not_a_service_day: 'Not a service day for this route',
-  outside_schedule_window: 'Outside the pattern’s start/end dates',
-  public_holiday: 'Public holiday',
-  trip_already_exists: 'A trip already exists for that slot',
+  trip_already_exists: 'This run already exists',
+  route_missing: 'The route no longer exists',
   conflict: 'Clashes with the timetable',
 };
 
 export function TripsTab({ routes }) {
-  const [refreshToken, setRefreshToken] = useState(0);
-  const refresh = useCallback(() => setRefreshToken((value) => value + 1), []);
+  const [token, setToken] = useState(0);
+  const refresh = useCallback(() => setToken((value) => value + 1), []);
 
   return (
-    <section>
+    <div style={styles.stack}>
       <GeneratePanel routes={routes} onCommitted={refresh} />
-      <TripList routes={routes} refreshToken={refreshToken} onChanged={refresh} />
-    </section>
+      <TripList routes={routes} refreshToken={token} onChanged={refresh} />
+    </div>
   );
 }
 
@@ -48,141 +48,103 @@ export function TripsTab({ routes }) {
  * Preview, then commit.
  *
  * The API defaults to a preview and only writes when dry_run is explicitly
- * false, so the two buttons below are not a nicety — sending the same
- * request without the flag is harmless. The same Idempotency-Key is used for
- * the commit that follows a preview, so pressing "Create" twice cannot
- * produce two months of trips.
+ * false, so sending the same request without the flag is harmless. The same
+ * Idempotency-Key is reused for the commit that follows a preview, so
+ * pressing Create twice cannot produce two sets of trips.
  */
 function GeneratePanel({ routes, onCommitted }) {
-  const today = todayIso();
-  const [form, setForm] = useState({
-    from: today,
-    to: addDaysIso(today, 13),
-    route_id: '',
-  });
+  const [routeId, setRouteId] = useState('');
   const [preview, setPreview] = useState(null);
-  const [committed, setCommitted] = useState(null);
-  const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
+  const [done, setDone] = useState('');
+  const [key, setKey] = useState(newIdempotencyKey);
   const { busy, error, setError, run } = useAction();
 
-  function body(dryRun) {
-    return {
-      from: form.from,
-      to: form.to,
-      route_id: form.route_id || null,
-      dry_run: dryRun,
-    };
-  }
-
   async function doPreview() {
-    setCommitted(null);
+    setDone('');
     const result = await run(() =>
-      apiRequest('routes', '/api/trips/generate', { method: 'POST', body: body(true) })
+      routesApi('/api/trips/generate', {
+        method: 'POST',
+        body: { route_id: routeId || null, dry_run: true },
+      })
     );
     if (result) setPreview(result);
   }
 
   async function doCommit() {
     const result = await run(() =>
-      apiRequest('routes', '/api/trips/generate', {
+      routesApi('/api/trips/generate', {
         method: 'POST',
-        body: body(false),
-        headers: { 'Idempotency-Key': idempotencyKey },
+        body: { route_id: routeId || null, dry_run: false },
+        headers: { 'Idempotency-Key': key },
       })
     );
     if (result) {
-      setCommitted(result);
       setPreview(null);
-      setIdempotencyKey(newIdempotencyKey());
+      setKey(newIdempotencyKey());
+      setDone(`${result.created} trip${result.created === 1 ? '' : 's'} created.`);
       onCommitted();
     }
   }
 
   return (
-    <div style={styles.card}>
-      <h3 style={{ marginTop: 0 }}>Generate trips from the saved patterns</h3>
-      <p style={styles.muted}>
-        Expands each route’s recurring pattern over the dates below, skipping weekends, public
-        holidays, days that already have a trip, and anything that would double-book a bus or a
-        supervisor. Nothing is written until you press Create.
+    <Card
+      title="Generate trips from the saved patterns"
+      actions={
+        <BusyButton busy={busy} primary onClick={doPreview}>
+          Preview
+        </BusyButton>
+      }
+    >
+      <p className="muted">
+        Works out which runs each route should have from its saved pattern, skips the ones that
+        already exist, and refuses anything that would double-book a bus or a supervisor. Nothing
+        is written until you press Create.
       </p>
 
       <ErrorBanner error={error} onDismiss={() => setError(null)} />
+      <SuccessNote onDismiss={() => setDone('')}>{done}</SuccessNote>
 
-      <div style={styles.row}>
-        <Field label="From">
-          <input
-            style={styles.input}
-            type="date"
-            value={form.from}
-            onChange={(event) => setForm({ ...form, from: event.target.value })}
-          />
-        </Field>
-        <Field label="To" hint="At most 120 days.">
-          <input
-            style={styles.input}
-            type="date"
-            value={form.to}
-            onChange={(event) => setForm({ ...form, to: event.target.value })}
-          />
-        </Field>
-        <Field label="Route">
-          <select
-            style={styles.input}
-            value={form.route_id}
-            onChange={(event) => setForm({ ...form, route_id: event.target.value })}
-          >
-            <option value="">All routes</option>
-            {routes.map((route) => (
-              <option key={route.id} value={route.id}>
-                {route.code}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <BusyButton busy={busy} onClick={doPreview}>
-          Preview
-        </BusyButton>
-      </div>
+      <Field label="Route">
+        <select
+          className="select"
+          value={routeId}
+          onChange={(event) => setRouteId(event.target.value)}
+        >
+          <option value="">All routes</option>
+          {routes.map((route) => (
+            <option key={route.id} value={route.id}>
+              {route.code}
+            </option>
+          ))}
+        </select>
+      </Field>
 
-      {committed && (
-        <p style={{ marginTop: 12 }}>
-          <Badge tone="good">Created {committed.created}</Badge>{' '}
-          <span style={styles.muted}>
-            trip{committed.created === 1 ? '' : 's'} between {committed.summary.from} and{' '}
-            {committed.summary.to}.
-          </span>
-        </p>
-      )}
-
-      {preview && <PreviewResult preview={preview} busy={busy} onCommit={doCommit} />}
-    </div>
+      {preview && <PreviewResult preview={preview} busy={busy} onCommit={doCommit} routes={routes} />}
+    </Card>
   );
 }
 
-function PreviewResult({ preview, busy, onCommit }) {
+function PreviewResult({ preview, busy, onCommit, routes }) {
   const { summary, trips, skipped } = preview;
   const byReason = summary.skipped_by_reason || {};
+  const codeOf = (id) => routes.find((route) => route.id === id)?.code || id;
 
   return (
-    <div style={{ marginTop: 12, borderTop: '1px solid #eee', paddingTop: 12 }}>
-      <div style={styles.row}>
+    <div style={{ marginTop: 14 }}>
+      <div style={styles.tight}>
         <Badge tone={summary.planned > 0 ? 'good' : 'warn'}>{summary.planned} to create</Badge>
         <Badge>{summary.skipped} skipped</Badge>
-        <span style={styles.muted}>
-          {summary.days} day{summary.days === 1 ? '' : 's'}, {summary.schedules} pattern
-          {summary.schedules === 1 ? '' : 's'}
+        <span className="muted">
+          {summary.schedules} pattern{summary.schedules === 1 ? '' : 's'}
         </span>
       </div>
 
       {summary.schedules === 0 && (
-        <Empty>
-          No patterns are saved, so there is nothing to expand. Set one on the Schedule tab first.
-        </Empty>
+        <Empty>No patterns are saved, so there is nothing to expand. Set one on the Schedule tab first.</Empty>
       )}
 
       {Object.keys(byReason).length > 0 && (
-        <ul style={{ margin: '8px 0', paddingLeft: 20, fontSize: 14 }}>
+        <ul className="row-list">
           {Object.entries(byReason).map(([reason, count]) => (
             <li key={reason}>
               {SKIP_LABELS[reason] || reason}: <strong>{count}</strong>
@@ -192,46 +154,35 @@ function PreviewResult({ preview, busy, onCommit }) {
       )}
 
       {trips.length > 0 && (
-        <details open>
-          <summary style={{ cursor: 'pointer' }}>Trips that would be created</summary>
-          <table style={{ ...styles.table, marginTop: 8 }}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Day</th>
-                <th style={styles.th}>Run</th>
-              </tr>
-            </thead>
-            <tbody>
-              {trips.map((trip) => (
-                <tr key={`${trip.route_id}-${trip.service_date}-${trip.run_type}`}>
-                  <td style={styles.td}>{formatIsoDate(trip.service_date)}</td>
-                  <td style={styles.td}>{trip.run_type}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
+        <Table head={['Route', 'Run']}>
+          {trips.map((trip) => (
+            <tr key={`${trip.route_id}-${trip.run_type}`}>
+              <td>{codeOf(trip.route_id)}</td>
+              <td>{trip.run_type}</td>
+            </tr>
+          ))}
+        </Table>
       )}
 
-      {/* Only the clashes are listed one by one. Showing all 40 "not a
-          service day" rows would bury the handful that need a decision. */}
+      {/* Only the clashes are listed one by one. Listing every "already
+          exists" row would bury the few that need a decision. */}
       {skipped.some((entry) => entry.reason === 'conflict') && (
-        <details open>
-          <summary style={{ cursor: 'pointer', color: '#c62828' }}>Refused because of a clash</summary>
-          <ul style={{ paddingLeft: 20, fontSize: 14 }}>
+        <>
+          <h4 className="section-title">Refused because of a clash</h4>
+          <ul className="row-list">
             {skipped
               .filter((entry) => entry.reason === 'conflict')
               .map((entry) => (
-                <li key={`${entry.route_id}-${entry.service_date}-${entry.run_type}`}>
-                  {formatIsoDate(entry.service_date)} ({entry.run_type}):{' '}
+                <li key={`${entry.route_id}-${entry.run_type}`}>
+                  {codeOf(entry.route_id)} ({entry.run_type}):{' '}
                   {entry.conflicts?.map((conflict) => conflict.message).join(' ')}
                 </li>
               ))}
           </ul>
-        </details>
+        </>
       )}
 
-      <BusyButton busy={busy} onClick={onCommit} disabled={summary.planned === 0}>
+      <BusyButton busy={busy} primary onClick={onCommit} disabled={summary.planned === 0}>
         Create these {summary.planned} trips
       </BusyButton>
     </div>
@@ -239,14 +190,7 @@ function PreviewResult({ preview, busy, onCommit }) {
 }
 
 function TripList({ routes, refreshToken, onChanged }) {
-  const today = todayIso();
-  const [filters, setFilters] = useState({
-    route_id: '',
-    from: today,
-    to: addDaysIso(today, 27),
-    status: '',
-    run_type: '',
-  });
+  const [filters, setFilters] = useState({ route_id: '', status: '', run_type: '' });
   const [trips, setTrips] = useState(null);
   const [error, setError] = useState(null);
   const [cancelling, setCancelling] = useState(null);
@@ -257,7 +201,7 @@ function TripList({ routes, refreshToken, onChanged }) {
       for (const [key, value] of Object.entries(filters)) {
         if (value) query.set(key, value);
       }
-      const data = await apiRequest('routes', `/api/trips?${query}`);
+      const data = await routesApi(`/api/trips?${query}`);
       setTrips(data.items);
       setError(null);
     } catch (caught) {
@@ -271,13 +215,11 @@ function TripList({ routes, refreshToken, onChanged }) {
   }, [load, refreshToken]);
 
   return (
-    <div style={styles.card}>
-      <h3 style={{ marginTop: 0 }}>Trips</h3>
-
-      <div style={styles.row}>
+    <Card title="Trips">
+      <div className="form-grid">
         <Field label="Route">
           <select
-            style={styles.input}
+            className="select"
             value={filters.route_id}
             onChange={(event) => setFilters({ ...filters, route_id: event.target.value })}
           >
@@ -289,25 +231,9 @@ function TripList({ routes, refreshToken, onChanged }) {
             ))}
           </select>
         </Field>
-        <Field label="From">
-          <input
-            style={styles.input}
-            type="date"
-            value={filters.from}
-            onChange={(event) => setFilters({ ...filters, from: event.target.value })}
-          />
-        </Field>
-        <Field label="To">
-          <input
-            style={styles.input}
-            type="date"
-            value={filters.to}
-            onChange={(event) => setFilters({ ...filters, to: event.target.value })}
-          />
-        </Field>
         <Field label="Status">
           <select
-            style={styles.input}
+            className="select"
             value={filters.status}
             onChange={(event) => setFilters({ ...filters, status: event.target.value })}
           >
@@ -318,7 +244,7 @@ function TripList({ routes, refreshToken, onChanged }) {
         </Field>
         <Field label="Run">
           <select
-            style={styles.input}
+            className="select"
             value={filters.run_type}
             onChange={(event) => setFilters({ ...filters, run_type: event.target.value })}
           >
@@ -331,57 +257,39 @@ function TripList({ routes, refreshToken, onChanged }) {
 
       <ErrorBanner error={error} onDismiss={() => setError(null)} />
 
-      {!trips && <Spinner>Loading trips…</Spinner>}
+      {!trips && <Spinner>Loading trips...</Spinner>}
       {trips && trips.length === 0 && <Empty>No trips match these filters.</Empty>}
 
       {trips && trips.length > 0 && (
-        <table style={{ ...styles.table, marginTop: 8 }}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Day</th>
-              <th style={styles.th}>Route</th>
-              <th style={styles.th}>Run</th>
-              <th style={styles.th}>Bus</th>
-              <th style={styles.th}>Status</th>
-              <th style={styles.th}>Source</th>
-              <th style={styles.th} />
+        <Table head={['Route', 'Run', 'Status', 'Source', '']}>
+          {trips.map((trip) => (
+            <tr key={trip.id}>
+              <td>{trip.route_code || trip.route_id}</td>
+              <td>{trip.run_type}</td>
+              <td>
+                {trip.status === 'cancelled' ? (
+                  <>
+                    <Badge tone="bad">cancelled</Badge>
+                    <div className="muted">
+                      {trip.cancelled_date ? `${formatIsoDate(trip.cancelled_date)}. ` : ''}
+                      {trip.cancellation_reason || ''}
+                    </div>
+                  </>
+                ) : (
+                  <Badge tone="good">active</Badge>
+                )}
+              </td>
+              <td className="muted">{trip.source}</td>
+              <td>
+                {trip.status === 'active' && (
+                  <Btn small danger onClick={() => setCancelling(trip)}>
+                    Cancel
+                  </Btn>
+                )}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {trips.map((trip) => (
-              <tr key={trip.id}>
-                <td style={styles.td}>{formatIsoDate(trip.service_date)}</td>
-                <td style={styles.td}>{trip.route_code}</td>
-                <td style={styles.td}>{trip.run_type}</td>
-                <td style={styles.td}>
-                  {trip.plate_number || <span style={styles.muted}>none</span>}
-                </td>
-                <td style={styles.td}>
-                  {trip.status === 'cancelled' ? (
-                    <>
-                      <Badge tone="bad">cancelled</Badge>
-                      {trip.cancellation_reason && (
-                        <div style={styles.muted}>{trip.cancellation_reason}</div>
-                      )}
-                    </>
-                  ) : (
-                    <Badge tone="good">active</Badge>
-                  )}
-                </td>
-                <td style={styles.td}>
-                  <span style={styles.muted}>{trip.source}</span>
-                </td>
-                <td style={styles.td}>
-                  {trip.status === 'active' && (
-                    <button type="button" onClick={() => setCancelling(trip)}>
-                      Cancel…
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          ))}
+        </Table>
       )}
 
       {cancelling && (
@@ -394,56 +302,51 @@ function TripList({ routes, refreshToken, onChanged }) {
           }}
         />
       )}
-    </div>
+    </Card>
   );
 }
 
 /**
- * Cancel a trip, after showing who it affects.
+ * Cancel a run for one day, after showing who it affects.
  *
- * The impact is fetched first, from a separate read-only endpoint, so the
- * admin sees the number of families before deciding rather than after. The
- * reason is required by the API, and it is not paperwork: it is the text
- * that ends up in the parents' alert.
+ * The impact is fetched first, from a read-only endpoint, so the admin sees
+ * the number of families before deciding rather than after. The reason is
+ * required by the API, and it is not paperwork: it is the text that reaches
+ * the parents through Ali's alerts.
  */
 function CancelDialog({ trip, onClose, onDone }) {
   const [impact, setImpact] = useState(null);
   const [reason, setReason] = useState('');
+  const [date, setDate] = useState(todayIso());
   const [loadError, setLoadError] = useState(null);
   const { busy, error, setError, run } = useAction();
 
   useEffect(() => {
-    apiRequest('routes', `/api/trips/${trip.id}/impact`).then(setImpact).catch(setLoadError);
+    routesApi(`/api/trips/${encodeURIComponent(trip.id)}/impact`)
+      .then(setImpact)
+      .catch(setLoadError);
   }, [trip.id]);
 
   async function confirm() {
+    if (reason.trim().length < 3) {
+      setError(new Error('Give a reason of at least 3 characters. The parents will see it.'));
+      return;
+    }
     const result = await run(() =>
-      apiRequest('routes', `/api/trips/${trip.id}/status`, {
+      routesApi(`/api/trips/${encodeURIComponent(trip.id)}/status`, {
         method: 'PATCH',
-        body: { status: 'cancelled', reason: reason.trim() },
+        body: { status: 'cancelled', reason: reason.trim(), date },
       })
     );
     if (result) onDone();
   }
 
   return (
-    <div
-      style={{
-        ...styles.card,
-        borderColor: '#c62828',
-        marginTop: 12,
-      }}
-      role="dialog"
-      aria-label="Cancel trip"
-    >
-      <h4 style={{ marginTop: 0 }}>
-        Cancel {trip.route_code} · {trip.run_type} · {formatIsoDate(trip.service_date)}
-      </h4>
-
+    <Card title={`Cancel ${trip.route_code || trip.route_id}, ${trip.run_type} run`}>
       <ErrorBanner error={loadError} onDismiss={() => setLoadError(null)} />
       <ErrorBanner error={error} onDismiss={() => setError(null)} />
 
-      {!impact && !loadError && <Spinner>Working out who this affects…</Spinner>}
+      {!impact && !loadError && <Spinner>Working out who this affects...</Spinner>}
 
       {impact && (
         <>
@@ -451,21 +354,21 @@ function CancelDialog({ trip, onClose, onDone }) {
             <strong>{impact.stop_count}</strong> stop{impact.stop_count === 1 ? '' : 's'} on this
             route
             {impact.affected_students === null ? (
-              <span style={styles.muted}>
+              <span className="muted">
                 {' '}
-                · the student list is not available, so the number of families cannot be shown
+                . The student list is not available, so the number of families cannot be shown.
               </span>
             ) : (
               <>
                 {' '}
-                · <strong>{impact.affected_students}</strong> student
+                . <strong>{impact.affected_students}</strong> student
                 {impact.affected_students === 1 ? '' : 's'} and{' '}
                 <strong>{impact.affected_parents}</strong> parent
-                {impact.affected_parents === 1 ? '' : 's'} will be told
+                {impact.affected_parents === 1 ? '' : 's'} will be told.
               </>
             )}
           </p>
-          <ul style={{ fontSize: 14, paddingLeft: 20 }}>
+          <ul className="row-list">
             {impact.stops.map((stop) => (
               <li key={stop.id}>
                 {stop.stop_order}. {stop.name}
@@ -475,25 +378,32 @@ function CancelDialog({ trip, onClose, onDone }) {
         </>
       )}
 
-      <Field label="Reason (sent to the parents)" hint="3–200 characters.">
-        <input
-          style={{ ...styles.input, width: '100%', maxWidth: 480 }}
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          minLength={3}
-          maxLength={200}
-          placeholder="Bus 14 is in for repair"
-        />
-      </Field>
-
-      <div style={{ ...styles.row, marginTop: 12 }}>
-        <BusyButton busy={busy} onClick={confirm} disabled={reason.trim().length < 3}>
-          Cancel this trip
-        </BusyButton>
-        <button type="button" onClick={onClose}>
-          Keep it
-        </button>
+      <div className="form-grid">
+        <Field label="Day to cancel">
+          <input
+            className="input"
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+          />
+        </Field>
+        <Field label="Reason (the parents see this)" hint="3 to 200 characters.">
+          <input
+            className="input"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={200}
+            placeholder="Bus 14 is in for repair"
+          />
+        </Field>
       </div>
-    </div>
+
+      <div style={styles.tight}>
+        <BusyButton busy={busy} danger onClick={confirm}>
+          Cancel this run
+        </BusyButton>
+        <Btn onClick={onClose}>Keep it</Btn>
+      </div>
+    </Card>
   );
 }

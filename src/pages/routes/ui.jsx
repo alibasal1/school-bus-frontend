@@ -1,60 +1,73 @@
 import { useCallback, useState } from 'react';
 
-// Small shared pieces for the Route & Stop page. Owner: Yehia.
+// Shared pieces for the Route & Stop page. Owner: Yehia (247330).
 //
-// Inline styles, to match the rest of this app and to avoid touching any
-// shared build configuration. Nothing here is specific to routes or trips,
-// so each piece can be read on its own.
+// Every colour, border and font comes from the shared classes in
+// src/styles/theme.css: card, btn, btn--primary, field, input, select,
+// badge, banner, data-table. No .css file is added here and nothing is
+// styled globally, so this page cannot change how anyone else's page looks.
+//
+// `styles` below holds layout only, never colour. It exists because the
+// admin views use it for spacing; anything visual belongs in a class.
 
 export const styles = {
-  card: {
-    border: '1px solid #d6d6d6',
-    borderRadius: 6,
-    padding: 12,
-    marginBottom: 12,
-    background: '#fff',
-  },
-  row: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  input: { padding: '6px 8px', border: '1px solid #bbb', borderRadius: 4, font: 'inherit' },
-  label: { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14 },
-  muted: { color: '#666', fontSize: 14 },
-  tabBar: { display: 'flex', gap: 8, margin: '12px 0' },
-  table: { borderCollapse: 'collapse', width: '100%', fontSize: 14 },
-  th: { textAlign: 'left', borderBottom: '2px solid #ddd', padding: '6px 8px' },
-  td: { borderBottom: '1px solid #eee', padding: '6px 8px', verticalAlign: 'top' },
+  row: { display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' },
+  stack: { display: 'grid', gap: 14 },
+  right: { marginLeft: 'auto' },
+  tight: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
 };
 
 /**
- * Shows an error from the API.
+ * Every button on this page.
  *
- * The API answers every failure with { error: { code, message, request_id } }
- * and api.js copies those onto the thrown Error. The request id is shown
- * because it is what ties a complaint to a line in the server log — without
- * it "it broke" is unsearchable.
+ * It exists so no button can be rendered without one of the theme's button
+ * classes. A bare <button> on Windows gets Chrome's light grey face and
+ * inherits whatever text colour is around it, which on a dark page makes
+ * the label invisible. That was the reported bug.
+ */
+export function Btn({ primary, danger, small, className = '', children, ...rest }) {
+  const classes = ['btn'];
+  if (primary) classes.push('btn--primary');
+  if (danger) classes.push('btn--danger');
+  if (small) classes.push('btn--sm');
+  if (className) classes.push(className);
+  return (
+    <button type="button" className={classes.join(' ')} {...rest}>
+      {children}
+    </button>
+  );
+}
+
+/** A button that disables itself and says so while its action runs. */
+export function BusyButton({ busy, children, disabled, ...rest }) {
+  return (
+    <Btn disabled={busy || disabled} {...rest}>
+      {busy ? 'Working...' : children}
+    </Btn>
+  );
+}
+
+/**
+ * An error from the API.
  *
- * A 409 from the trips endpoints carries details.conflicts: the list of
- * reasons the timetable refused the change. Showing them is the whole value
- * of that endpoint, so they are rendered rather than swallowed.
+ * Every failure arrives as { error: { code, message, request_id } }. The
+ * request id is shown because it is what ties a complaint to a line in the
+ * CloudWatch log. A 409 from the trips endpoints also carries the list of
+ * reasons the timetable refused the change, and showing them is the whole
+ * value of that endpoint.
  */
 export function ErrorBanner({ error, onDismiss }) {
   if (!error) return null;
   const conflicts = error.details?.conflicts;
 
   return (
-    <div
-      role="alert"
-      style={{
-        ...styles.card,
-        borderColor: '#c62828',
-        background: '#fdecea',
-      }}
-    >
+    <div className="banner banner--error" role="alert">
       <div style={styles.row}>
         <strong style={{ flex: 1 }}>{error.message}</strong>
         {onDismiss && (
-          <button type="button" onClick={onDismiss}>
+          <Btn small onClick={onDismiss}>
             Dismiss
-          </button>
+          </Btn>
         )}
       </div>
 
@@ -62,57 +75,80 @@ export function ErrorBanner({ error, onDismiss }) {
         <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
           {conflicts.map((conflict) => (
             <li key={conflict.code}>
-              <code>{conflict.code}</code> — {conflict.message}
+              <span className="mono">{conflict.code}</span> — {conflict.message}
             </li>
           ))}
         </ul>
       )}
 
       {error.requestId && (
-        <p style={{ ...styles.muted, margin: '8px 0 0' }}>
-          Reference: <code>{error.requestId}</code>
+        <p className="muted" style={{ margin: '8px 0 0' }}>
+          Reference: <span className="mono">{error.requestId}</span>
         </p>
       )}
     </div>
   );
 }
 
-export function Spinner({ children = 'Loading…' }) {
-  return <p style={styles.muted}>{children}</p>;
+/** A short confirmation after something worked, like Ali's pages. */
+export function SuccessNote({ children, onDismiss }) {
+  if (!children) return null;
+  return (
+    <div className="banner banner--success" role="status">
+      <div style={styles.row}>
+        <span style={{ flex: 1 }}>{children}</span>
+        {onDismiss && (
+          <Btn small onClick={onDismiss}>
+            OK
+          </Btn>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function Spinner({ children = 'Loading...' }) {
+  return <p className="muted">{children}</p>;
 }
 
 export function Empty({ children }) {
-  return <p style={styles.muted}>{children}</p>;
-}
-
-/** A button that disables itself and shows progress while its action runs. */
-export function BusyButton({ busy, children, ...rest }) {
-  return (
-    <button type="button" disabled={busy || rest.disabled} {...rest}>
-      {busy ? 'Working…' : children}
-    </button>
-  );
+  return <p className="muted">{children}</p>;
 }
 
 export function Field({ label, hint, children }) {
   return (
-    <label style={styles.label}>
-      <span>{label}</span>
+    <label className="field">
+      <span className="field__label">{label}</span>
       {children}
-      {hint && <span style={styles.muted}>{hint}</span>}
+      {hint && <span className="muted">{hint}</span>}
     </label>
+  );
+}
+
+export function Card({ title, actions, children }) {
+  return (
+    <section className="card">
+      {(title || actions) && (
+        <div className="card__head">
+          {title && <h3 className="card__title">{title}</h3>}
+          {actions && <div style={styles.tight}>{actions}</div>}
+        </div>
+      )}
+      {children}
+    </section>
   );
 }
 
 export function Tabs({ tabs, current, onChange }) {
   return (
-    <nav style={styles.tabBar}>
+    <nav className="nav-tabs">
       {tabs.map((tab) => (
         <button
           key={tab.key}
           type="button"
+          className={`nav-tab${tab.key === current ? ' nav-tab--active' : ''}`}
           onClick={() => onChange(tab.key)}
-          disabled={tab.key === current}
+          aria-current={tab.key === current ? 'page' : undefined}
         >
           {tab.label}
         </button>
@@ -121,25 +157,26 @@ export function Tabs({ tabs, current, onChange }) {
   );
 }
 
+/** Colour is never the only cue: every badge carries a word as well. */
 export function Badge({ tone = 'neutral', children }) {
-  const tones = {
-    neutral: { background: '#eee', color: '#333' },
-    good: { background: '#e3f4e5', color: '#1b5e20' },
-    bad: { background: '#fdecea', color: '#c62828' },
-    warn: { background: '#fff6e0', color: '#8a6100' },
-  };
+  const suffix = { good: ' badge--accent', bad: ' badge--danger', warn: ' badge--warn' };
+  return <span className={`badge${suffix[tone] || ''}`}>{children}</span>;
+}
+
+export function Table({ head, children }) {
   return (
-    <span
-      style={{
-        ...tones[tone],
-        borderRadius: 10,
-        padding: '2px 8px',
-        fontSize: 12,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {children}
-    </span>
+    <div className="table-wrap">
+      <table className="data-table">
+        <thead>
+          <tr>
+            {head.map((label) => (
+              <th key={label}>{label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
   );
 }
 
@@ -147,9 +184,9 @@ export function Badge({ tone = 'neutral', children }) {
  * Runs one write at a time and tracks whether it is in flight.
  *
  * Every admin action needs the same three things: disable the button while
- * the request is running, show the error if it fails, and refresh afterwards
- * if it succeeds. Doing that by hand in each handler is where the "clicked
- * twice and created two routes" bugs come from.
+ * the request runs, show the error if it fails, and refresh if it succeeds.
+ * Doing that by hand in each handler is where "clicked twice and created
+ * two routes" comes from.
  */
 export function useAction() {
   const [busy, setBusy] = useState(false);
@@ -173,9 +210,8 @@ export function useAction() {
 
 // --- dates ------------------------------------------------------------------
 // The API sends and expects calendar days as YYYY-MM-DD, never timestamps:
-// a trip on 2026-03-01 is the same trip whatever timezone the browser is in.
-// These helpers keep that true on this side too, so nothing is ever built
-// from a Date object that could roll over at midnight.
+// a day is the same day whatever timezone the browser is in. Everything
+// here works in UTC so a date can never shift by one at midnight.
 
 export function todayIso() {
   const now = new Date();
@@ -186,13 +222,10 @@ export function todayIso() {
 
 export function addDaysIso(iso, days) {
   const [year, month, day] = iso.split('-').map(Number);
-  const shifted = new Date(Date.UTC(year, month - 1, day + days));
-  return shifted.toISOString().slice(0, 10);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
-const WEEKDAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-/** Pretty "Sun 1 Mar 2026" for a YYYY-MM-DD string, without timezone drift. */
+/** "Sun 1 Mar 2026" from a YYYY-MM-DD string, without timezone drift. */
 export function formatIsoDate(iso) {
   if (!iso) return '';
   const [year, month, day] = iso.split('-').map(Number);
@@ -206,5 +239,8 @@ export function formatIsoDate(iso) {
   });
 }
 
-/** ISO day numbers, as the API uses them: 1 = Monday … 7 = Sunday. */
-export const WEEKDAYS = WEEKDAY_NAMES.map((label, index) => ({ value: index + 1, label }));
+/** ISO day numbers, as the API uses them: 1 = Monday ... 7 = Sunday. */
+export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label, index) => ({
+  value: index + 1,
+  label,
+}));

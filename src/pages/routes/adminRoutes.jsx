@@ -1,21 +1,32 @@
-// Admin: routes and their stops. Owner: Yehia.
+// Admin: routes and their stops. Owner: Yehia (247330).
 
 import { useEffect, useState } from 'react';
-import { apiRequest } from '../../api';
-import { newIdempotencyKey, turnstileHeaders } from './turnstile';
-import { Badge, BusyButton, Empty, ErrorBanner, Field, Spinner, styles, useAction } from './ui';
+import { newIdempotencyKey, routesApi } from './routesApi';
+import {
+  Badge,
+  Btn,
+  BusyButton,
+  Card,
+  Empty,
+  ErrorBanner,
+  Field,
+  Spinner,
+  SuccessNote,
+  Table,
+  styles,
+  useAction,
+} from './ui';
 
 export function RoutesTab({ routes, loading, error, reload }) {
   const [openId, setOpenId] = useState(null);
 
   return (
-    <section>
+    <div style={styles.stack}>
       <CreateRouteForm onCreated={reload} />
 
-      <h3>Routes</h3>
       <ErrorBanner error={error} />
-      {loading && <Spinner>Loading routes…</Spinner>}
-      {!loading && routes.length === 0 && <Empty>No routes yet. Create the first one above.</Empty>}
+      {loading && <Spinner>Loading routes...</Spinner>}
+      {!loading && routes.length === 0 && <Empty>No routes yet. Add the first one above.</Empty>}
 
       {routes.map((route) => (
         <RouteRow
@@ -26,79 +37,92 @@ export function RoutesTab({ routes, loading, error, reload }) {
           reload={reload}
         />
       ))}
-    </section>
+    </div>
   );
 }
 
 function CreateRouteForm({ onCreated }) {
   const [form, setForm] = useState({ code: '', name: '', area: '' });
+  const [done, setDone] = useState('');
   const { busy, error, setError, run } = useAction();
 
   // One key per attempt by the user, not per request. If the first submit
-  // times out and the user presses the button again, the same key goes up
-  // and the API replays its answer instead of creating a second route. The
-  // key is only replaced once a create has actually succeeded.
-  const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
+  // times out and they press the button again, the same key goes up and the
+  // API replays its answer instead of creating a second route. A new key is
+  // taken only once a create has actually succeeded.
+  const [key, setKey] = useState(newIdempotencyKey);
+
+  function validate() {
+    if (form.code.trim().length < 2) return 'Code must be at least 2 characters.';
+    if (form.name.trim().length < 3) return 'Name must be at least 3 characters.';
+    if (form.area.trim().length < 2) return 'Area must be at least 2 characters.';
+    return null;
+  }
 
   async function submit(event) {
     event.preventDefault();
+    setDone('');
+    const problem = validate();
+    if (problem) {
+      setError(new Error(problem));
+      return;
+    }
+
     const created = await run(() =>
-      apiRequest('routes', '/api/routes', {
+      routesApi('/api/routes', {
         method: 'POST',
         body: form,
-        headers: { 'Idempotency-Key': idempotencyKey, ...turnstileHeaders() },
+        headers: { 'Idempotency-Key': key },
       })
     );
     if (created) {
       setForm({ code: '', name: '', area: '' });
-      setIdempotencyKey(newIdempotencyKey());
+      setKey(newIdempotencyKey());
+      setDone(`Route ${created.code} added.`);
       onCreated();
     }
   }
 
   return (
-    <form onSubmit={submit} style={styles.card}>
-      <h3 style={{ marginTop: 0 }}>Add a route</h3>
+    <Card title="Add a route">
       <ErrorBanner error={error} onDismiss={() => setError(null)} />
-      <div style={styles.row}>
-        <Field label="Code" hint="2–20 characters, e.g. R-04">
+      <SuccessNote onDismiss={() => setDone('')}>{done}</SuccessNote>
+
+      <form onSubmit={submit} className="form-grid">
+        <Field label="Code" hint="For example R3.">
           <input
-            style={styles.input}
+            className="input"
             value={form.code}
             onChange={(event) => setForm({ ...form, code: event.target.value })}
             maxLength={20}
-            required
           />
         </Field>
         <Field label="Name">
           <input
-            style={styles.input}
+            className="input"
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
-            minLength={3}
             maxLength={100}
-            required
           />
         </Field>
         <Field label="Area">
           <input
-            style={styles.input}
+            className="input"
             value={form.area}
             onChange={(event) => setForm({ ...form, area: event.target.value })}
-            minLength={2}
             maxLength={100}
-            required
           />
         </Field>
-        <BusyButton busy={busy} type="submit">
-          Create route
+        <BusyButton busy={busy} primary type="submit">
+          Add route
         </BusyButton>
-      </div>
-      <p style={styles.muted}>
-        The browser checks these too, but only the API's answer decides: it validates every field
-        again, because anyone can skip this form and call the API directly.
+      </form>
+
+      <p className="muted">
+        The browser checks these, but only the API decides: it validates every field again,
+        because anyone can skip this form and call the API directly.
       </p>
-    </form>
+    </Card>
   );
 }
 
@@ -108,48 +132,48 @@ function RouteRow({ route, open, onToggle, reload }) {
 
   async function setActive(isActive) {
     const updated = await run(() =>
-      apiRequest('routes', `/api/routes/${route.id}`, {
-        method: 'PUT',
-        body: { is_active: isActive },
-        headers: turnstileHeaders(),
-      })
+      routesApi(`/api/routes/${route.id}`, { method: 'PUT', body: { is_active: isActive } })
     );
     if (updated) reload();
   }
 
   async function remove() {
-    // The API refuses to delete a route that has trips, and says to
+    // The API refuses to delete a route that has trips and says to
     // deactivate instead. That 409 is shown in full rather than turned into
     // "could not delete", because the message contains the way forward.
     const deleted = await run(async () => {
-      await apiRequest('routes', `/api/routes/${route.id}`, { method: 'DELETE' });
+      await routesApi(`/api/routes/${route.id}`, { method: 'DELETE' });
       return true;
     });
     if (deleted) reload();
   }
 
   return (
-    <article style={styles.card}>
-      <div style={styles.row}>
-        <strong>{route.code}</strong>
-        <span style={{ flex: 1 }}>{route.name}</span>
+    <Card
+      title={`${route.code} — ${route.name}`}
+      actions={
+        <>
+          <Btn small onClick={onToggle}>
+            {open ? 'Close' : 'Stops'}
+          </Btn>
+          <Btn small onClick={() => setEditing((value) => !value)}>
+            {editing ? 'Cancel' : 'Rename'}
+          </Btn>
+          <BusyButton small busy={busy} onClick={() => setActive(!route.is_active)}>
+            {route.is_active ? 'Retire' : 'Reactivate'}
+          </BusyButton>
+          <BusyButton small busy={busy} danger onClick={remove}>
+            Delete
+          </BusyButton>
+        </>
+      }
+    >
+      <div style={styles.tight}>
         <Badge>{route.area}</Badge>
         <Badge tone={route.stop_count > 0 ? 'neutral' : 'warn'}>{route.stop_count} stops</Badge>
         <Badge tone={route.is_active ? 'good' : 'bad'}>
           {route.is_active ? 'Active' : 'Retired'}
         </Badge>
-        <button type="button" onClick={onToggle}>
-          {open ? 'Close' : 'Stops'}
-        </button>
-        <button type="button" onClick={() => setEditing((value) => !value)}>
-          {editing ? 'Cancel' : 'Rename'}
-        </button>
-        <BusyButton busy={busy} onClick={() => setActive(!route.is_active)}>
-          {route.is_active ? 'Retire' : 'Reactivate'}
-        </BusyButton>
-        <BusyButton busy={busy} onClick={remove}>
-          Delete
-        </BusyButton>
       </div>
 
       <ErrorBanner error={error} onDismiss={() => setError(null)} />
@@ -165,7 +189,7 @@ function RouteRow({ route, open, onToggle, reload }) {
       )}
 
       {open && <StopEditor routeId={route.id} onChanged={reload} />}
-    </article>
+    </Card>
   );
 }
 
@@ -176,40 +200,36 @@ function EditRouteForm({ route, onSaved }) {
   async function submit(event) {
     event.preventDefault();
     const saved = await run(() =>
-      apiRequest('routes', `/api/routes/${route.id}`, {
-        method: 'PUT',
-        body: form,
-        headers: turnstileHeaders(),
-      })
+      routesApi(`/api/routes/${route.id}`, { method: 'PUT', body: form })
     );
     if (saved) onSaved();
   }
 
   return (
-    <form onSubmit={submit} style={{ ...styles.row, marginTop: 8 }}>
+    <form onSubmit={submit} className="form-grid" style={{ marginTop: 14 }}>
       <ErrorBanner error={error} onDismiss={() => setError(null)} />
       <Field label="Code">
         <input
-          style={styles.input}
+          className="input"
           value={form.code}
           onChange={(event) => setForm({ ...form, code: event.target.value })}
         />
       </Field>
       <Field label="Name">
         <input
-          style={styles.input}
+          className="input"
           value={form.name}
           onChange={(event) => setForm({ ...form, name: event.target.value })}
         />
       </Field>
       <Field label="Area">
         <input
-          style={styles.input}
+          className="input"
           value={form.area}
           onChange={(event) => setForm({ ...form, area: event.target.value })}
         />
       </Field>
-      <BusyButton busy={busy} type="submit">
+      <BusyButton busy={busy} primary type="submit">
         Save
       </BusyButton>
     </form>
@@ -220,22 +240,21 @@ function EditRouteForm({ route, onSaved }) {
  * Add, rename, delete and reorder the stops of one route.
  *
  * Note what the reorder buttons send: `{ move: { stop_id, to_position } }`,
- * not a new stop_order on the stop itself. The API refuses stop_order on the
- * stop endpoint entirely. Positions are the server's to decide, because it
- * is the only place that can renumber the whole route in one transaction —
- * two admins dragging stops at the same time would otherwise leave the
- * sequence with a gap or a duplicate, and "your stop is 4th" would stop
- * meaning anything.
+ * never a stop_order on the stop itself, which the API refuses outright.
+ * Positions belong to the server, because it is the only place that can
+ * renumber the whole route in one transaction. Two admins dragging stops at
+ * once would otherwise leave a gap or a duplicate, and "your stop is 4th"
+ * would stop meaning anything.
  */
 function StopEditor({ routeId, onChanged }) {
   const [stops, setStops] = useState(null);
   const [newStop, setNewStop] = useState({ name: '', landmark: '' });
-  const { busy, error, setError, run } = useAction();
   const [loadError, setLoadError] = useState(null);
+  const { busy, error, setError, run } = useAction();
 
   async function load() {
     try {
-      const route = await apiRequest('routes', `/api/routes/${routeId}`);
+      const route = await routesApi(`/api/routes/${routeId}`);
       setStops(route.stops);
       setLoadError(null);
     } catch (caught) {
@@ -250,11 +269,15 @@ function StopEditor({ routeId, onChanged }) {
 
   async function addStop(event) {
     event.preventDefault();
+    if (newStop.name.trim().length < 3) {
+      setError(new Error('Stop name must be at least 3 characters.'));
+      return;
+    }
     const created = await run(() =>
-      apiRequest('routes', `/api/routes/${routeId}/stops`, {
+      routesApi(`/api/routes/${routeId}/stops`, {
         method: 'POST',
         body: { name: newStop.name, landmark: newStop.landmark || null },
-        headers: { 'Idempotency-Key': newIdempotencyKey(), ...turnstileHeaders() },
+        headers: { 'Idempotency-Key': newIdempotencyKey() },
       })
     );
     if (created) {
@@ -268,7 +291,7 @@ function StopEditor({ routeId, onChanged }) {
     const target = stop.stop_order + direction;
     if (target < 1 || target > stops.length) return;
     const result = await run(() =>
-      apiRequest('routes', `/api/routes/${routeId}/stops/order`, {
+      routesApi(`/api/routes/${routeId}/stops/order`, {
         method: 'PUT',
         body: { move: { stop_id: stop.id, to_position: target } },
       })
@@ -278,7 +301,7 @@ function StopEditor({ routeId, onChanged }) {
 
   async function removeStop(stop) {
     const done = await run(async () => {
-      await apiRequest('routes', `/api/stops/${stop.id}`, { method: 'DELETE' });
+      await routesApi(`/api/stops/${stop.id}`, { method: 'DELETE' });
       return true;
     });
     if (done) {
@@ -290,103 +313,91 @@ function StopEditor({ routeId, onChanged }) {
   async function rename(stop, name) {
     if (!name || name === stop.name) return;
     const saved = await run(() =>
-      apiRequest('routes', `/api/stops/${stop.id}`, {
-        method: 'PUT',
-        body: { name },
-        headers: turnstileHeaders(),
-      })
+      routesApi(`/api/stops/${stop.id}`, { method: 'PUT', body: { name } })
     );
     if (saved) await load();
   }
 
   return (
-    <div style={{ marginTop: 12, borderTop: '1px solid #eee', paddingTop: 12 }}>
-      <h4 style={{ marginTop: 0 }}>Stops</h4>
+    <div style={{ marginTop: 14 }}>
+      <h4 className="section-title">Stops</h4>
       <ErrorBanner error={loadError} onDismiss={() => setLoadError(null)} />
       <ErrorBanner error={error} onDismiss={() => setError(null)} />
 
-      {!stops && <Spinner>Loading stops…</Spinner>}
+      {!stops && <Spinner>Loading stops...</Spinner>}
       {stops && stops.length === 0 && <Empty>No stops yet.</Empty>}
 
       {stops && stops.length > 0 && (
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>#</th>
-              <th style={styles.th}>Name</th>
-              <th style={styles.th}>Landmark</th>
-              <th style={styles.th}>Order</th>
-              <th style={styles.th} />
-            </tr>
-          </thead>
-          <tbody>
-            {stops.map((stop) => (
-              <tr key={stop.id}>
-                <td style={styles.td}>{stop.stop_order}</td>
-                <td style={styles.td}>
-                  <input
-                    style={styles.input}
-                    defaultValue={stop.name}
-                    onBlur={(event) => rename(stop, event.target.value.trim())}
-                    aria-label={`Name of stop ${stop.stop_order}`}
-                  />
-                </td>
-                <td style={styles.td}>{stop.landmark || <span style={styles.muted}>—</span>}</td>
-                <td style={styles.td}>
+        <Table head={['#', 'Name', 'Landmark', 'Order', '']}>
+          {stops.map((stop) => (
+            <tr key={stop.id}>
+              <td>{stop.stop_order}</td>
+              <td>
+                <input
+                  className="input"
+                  defaultValue={stop.name}
+                  onBlur={(event) => rename(stop, event.target.value.trim())}
+                  aria-label={`Name of stop ${stop.stop_order}`}
+                />
+              </td>
+              <td className="muted">{stop.landmark || '—'}</td>
+              <td>
+                <div style={styles.tight}>
                   <BusyButton
+                    small
                     busy={busy}
                     onClick={() => move(stop, -1)}
                     disabled={stop.stop_order === 1}
                     aria-label="Move up"
                   >
-                    ↑
-                  </BusyButton>{' '}
+                    Up
+                  </BusyButton>
                   <BusyButton
+                    small
                     busy={busy}
                     onClick={() => move(stop, 1)}
                     disabled={stop.stop_order === stops.length}
                     aria-label="Move down"
                   >
-                    ↓
+                    Down
                   </BusyButton>
-                </td>
-                <td style={styles.td}>
-                  <BusyButton busy={busy} onClick={() => removeStop(stop)}>
-                    Delete
-                  </BusyButton>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              </td>
+              <td>
+                <BusyButton small danger busy={busy} onClick={() => removeStop(stop)}>
+                  Delete
+                </BusyButton>
+              </td>
+            </tr>
+          ))}
+        </Table>
       )}
 
-      <form onSubmit={addStop} style={{ ...styles.row, marginTop: 8 }}>
+      <form onSubmit={addStop} className="form-grid" style={{ marginTop: 14 }}>
         <Field label="New stop">
           <input
-            style={styles.input}
+            className="input"
             value={newStop.name}
             onChange={(event) => setNewStop({ ...newStop, name: event.target.value })}
-            minLength={3}
             maxLength={100}
-            required
           />
         </Field>
         <Field label="Landmark (optional)">
           <input
-            style={styles.input}
+            className="input"
             value={newStop.landmark}
             onChange={(event) => setNewStop({ ...newStop, landmark: event.target.value })}
             maxLength={150}
           />
         </Field>
-        <BusyButton busy={busy} type="submit">
+        <BusyButton busy={busy} primary type="submit">
           Add stop
         </BusyButton>
       </form>
-      <p style={styles.muted}>
+
+      <p className="muted">
         Deleting a stop closes the gap automatically: the API renumbers the rest in the same
-        transaction, so the order is always 1…n.
+        transaction, so the order is always 1 to n.
       </p>
     </div>
   );
