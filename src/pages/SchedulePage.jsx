@@ -127,7 +127,7 @@ export default function SchedulePage() {
     );
   }
 
-  const etaForRoute = eta?.route_id === selectedRoute?.id;
+  const etaForRoute = Boolean(eta && selectedRoute && eta.route_id === selectedRoute.id);
   const etaByStopId = new Map((etaForRoute ? eta.stops || [] : []).map((item) => [item.stop_id, item]));
 
   return (
