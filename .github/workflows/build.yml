@@ -1,0 +1,49 @@
+name: Build
+
+# Runs npm run build on every push, so a change that breaks the app is
+# caught here instead of on the demo laptop.
+#
+# Worth having because of the kind of bug this app has already had: a read
+# of results.items.length on an answer that was a plain array threw during
+# render, React unmounted the whole tree, and every page went blank, not
+# just the one with the mistake. A build does not catch that one, but it
+# does catch a bad import, a syntax error or a missing file, which is the
+# cheapest half of the problem.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install
+        run: |
+          if npm ci --no-audit --no-fund; then
+            echo "Installed from the lock file."
+          else
+            echo "::warning::npm ci failed, so package-lock.json is out of step with package.json. Falling back to npm install."
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Build
+        run: npm run build
+
+      - name: Check for secrets
+        run: |
+          if git ls-files | grep -E '(^|/)\.env(\.|$)' | grep -v '\.env\.example'; then
+            echo "::error::A .env file is tracked by git."
+            exit 1
+          fi
+          echo "No secret files tracked."
